@@ -25,6 +25,7 @@ import {
     Split
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { Markdown } from "@/components/ui/markdown"
 import ModeToggle from "../dashboard/ModeToggle"
 
 /* ---------------- DOMAIN TYPES ---------------- */
@@ -69,11 +70,11 @@ const DEFAULT_NODE_HEIGHT = 500
 const MINI_MAP_SIZE = 150
 
 const AVAILABLE_MODELS = [
-    { name: "Gemini 2.0", color: "bg-blue-500/10 border-blue-500/50" },
-    { name: "GPT-4o", color: "bg-green-500/10 border-green-500/50" },
-    { name: "Claude 3.5", color: "bg-orange-500/10 border-orange-500/50" },
-    { name: "DeepSeek", color: "bg-purple-500/10 border-purple-500/50" },
-    { name: "Llama 3", color: "bg-indigo-500/10 border-indigo-500/50" },
+    { id: "gemini-2.0", name: "Gemini 2.0", color: "bg-blue-500/10 border-blue-500/50" },
+    { id: "gpt-4o", name: "GPT-4o", color: "bg-green-500/10 border-green-500/50" },
+    { id: "claude-3.5", name: "Claude 3.5", color: "bg-orange-500/10 border-orange-500/50" },
+    { id: "deepseek", name: "DeepSeek", color: "bg-purple-500/10 border-purple-500/50" },
+    { id: "llama-3", name: "Llama 3", color: "bg-indigo-500/10 border-indigo-500/50" },
 ]
 
 /* ---------------- UTILS ---------------- */
@@ -82,14 +83,19 @@ function generateId() {
     return uuidv4()
 }
 
-function getDummyResponse(model: string, query: string) {
-    return `${model} response to "${query}":\n\nAnalyzed the request. Here is a simulated response demonstrating the unique perspective of ${model}. This would contain specific reasoning logic.`
-}
-
 /* ---------------- COMPONENTS ---------------- */
 
 // 1. MINI MAP 
 function MiniMap({ nodes, camera, onNavigate }: { nodes: ChatNode[], camera: { x: number, y: number, scale: number }, onNavigate: (x: number, y: number) => void }) {
+    // Safe window dimensions for SSR
+    const [windowSize, setWindowSize] = useState({ w: 1200, h: 800 })
+    useEffect(() => {
+        const update = () => setWindowSize({ w: window.innerWidth, h: window.innerHeight })
+        update()
+        window.addEventListener("resize", update)
+        return () => window.removeEventListener("resize", update)
+    }, [])
+
     // Calculate bounding box
     const bounds = useMemo(() => {
         if (nodes.length === 0) return { minX: 0, maxX: 1000, minY: 0, maxY: 1000 }
@@ -123,7 +129,7 @@ function MiniMap({ nodes, camera, onNavigate }: { nodes: ChatNode[], camera: { x
                     // Convert back to canvas space
                     const targetX = bounds.minX + (clickX / scale)
                     const targetY = bounds.minY + (clickY / scale)
-                    onNavigate(-targetX + window.innerWidth / 2, -targetY + window.innerHeight / 2)
+                    onNavigate(-targetX + windowSize.w / 2, -targetY + windowSize.h / 2)
                 }}
             >
                 {nodes.map(node => (
@@ -144,8 +150,8 @@ function MiniMap({ nodes, camera, onNavigate }: { nodes: ChatNode[], camera: { x
                     style={{
                         left: (-camera.x - bounds.minX) * scale, // approximate inverse
                         top: (-camera.y - bounds.minY) * scale,
-                        width: (window.innerWidth / camera.scale) * scale,
-                        height: (window.innerHeight / camera.scale) * scale
+                        width: (windowSize.w / camera.scale) * scale,
+                        height: (windowSize.h / camera.scale) * scale
                     }}
                 />
             </div>
@@ -207,13 +213,6 @@ function ChatNodeCard({
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight
         }
     }, [node.messages, node.responses])
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault()
-            handleSubmit()
-        }
-    }
 
     const handleSubmit = () => {
         if (!input.trim()) return
@@ -284,9 +283,8 @@ function ChatNodeCard({
                                 <div
                                     key={rIdx}
                                     className={cn(
-                                        "bg-muted/50 rounded-lg p-3 text-sm border relative group",
-                                        node.variant === "panel-vote" && res.isWinner && "ring-2 ring-green-500 bg-green-500/10",
-                                        AVAILABLE_MODELS.find(m => m.name === res.modelName)?.color
+                                        "rounded-lg p-3 text-sm border relative group",
+                                        node.variant === "panel-vote" && res.isWinner && "ring-2 ring-green-500 bg-green-500/10"
                                     )}
                                 >
                                     <div className="flex items-center justify-between mb-2 border-b pb-1 opacity-70">
@@ -300,7 +298,7 @@ function ChatNodeCard({
                                             </span>
                                         )}
                                     </div>
-                                    <div className="whitespace-pre-wrap">{res.content}</div>
+                                    <div className="prose prose-sm dark:prose-invert max-w-none break-words"><Markdown>{res.content}</Markdown></div>
 
                                     {/* Vote highlight or Panel actions */}
                                     {node.variant === "panel-vote" && res.isWinner && (
@@ -423,7 +421,6 @@ function ChatNodeCard({
                     >
                         <PromptInputTextarea
                             placeholder={`Reply (${node.variant})...`}
-                            onKeyDown={handleKeyDown}
                             className="min-h-[50px] max-h-[100px] text-sm py-3 resize-none bg-transparent"
                         />
                         <PromptInputActions className="pb-2 pr-2">
@@ -494,75 +491,149 @@ export default function CanvasChatBoard() {
     ])
 
     /* LOGIC: SEND MESSAGE */
-    const sendMessage = (nodeId: string, text: string) => {
+    const sendMessage = async (nodeId: string, text: string) => {
+        // Detect Commands
+        const node = nodes.find(n => n.id === nodeId)
+        if (!node) return
+
+        let nextVariant = node.variant
+        let cleanText = text
+        if (text.startsWith("/multi")) {
+            nextVariant = "multi-model"
+            cleanText = text.replace("/multi", "").trim()
+        } else if (text.startsWith("/vote")) {
+            nextVariant = "panel-vote"
+            cleanText = text.replace("/vote", "").trim()
+        } else if (text.startsWith("/std")) {
+            nextVariant = "standard"
+            cleanText = text.replace("/std", "").trim()
+        }
+
+        if (!cleanText) cleanText = "Demo Query"
+
+        const userMsgId = generateId()
+        const responseId = generateId()
+
+        // Determine which models to call
+        let selectedModelIds: string[]
+        if (nextVariant === "multi-model") {
+            selectedModelIds = AVAILABLE_MODELS.slice(0, 3).map(m => m.id)
+        } else if (nextVariant === "panel-vote") {
+            selectedModelIds = AVAILABLE_MODELS.map(m => m.id)
+        } else {
+            selectedModelIds = ["gemini-2.0"]
+        }
+
+        // Immediately add user message + a loading placeholder
+        const loadingResponses: ChatMessage[] = selectedModelIds.map(id => {
+            const model = AVAILABLE_MODELS.find(m => m.id === id)
+            return {
+                id: generateId(),
+                role: "assistant" as const,
+                content: "Thinking…",
+                modelName: model?.name || id
+            }
+        })
+
         setNodes(prev => prev.map(n => {
             if (n.id !== nodeId) return n
-
-            // Detect Commands
-            let nextVariant = n.variant
-            let cleanText = text
-            if (text.startsWith("/multi")) {
-                nextVariant = "multi-model"
-                cleanText = text.replace("/multi", "").trim()
-            } else if (text.startsWith("/vote")) {
-                nextVariant = "panel-vote"
-                cleanText = text.replace("/vote", "").trim()
-            } else if (text.startsWith("/std")) {
-                nextVariant = "standard"
-                cleanText = text.replace("/std", "").trim()
-            }
-
-            if (!cleanText) cleanText = "Demo Query"
-
-            const userMsgId = generateId()
-            const responseId = generateId()
-
-            // Generate Mock Responses
-            let modelResponses: ChatMessage[] = []
-
-            if (nextVariant === "multi-model") {
-                // Stacked 3-5 responses (Left-Right)
-                // We will pick 3 random models
-                const subset = AVAILABLE_MODELS.slice(0, 3)
-                modelResponses = subset.map(m => ({
-                    id: generateId(),
-                    role: "assistant",
-                    content: getDummyResponse(m.name, cleanText),
-                    modelName: m.name
-                }))
-            } else if (nextVariant === "panel-vote") {
-                // 5 models, voting
-                modelResponses = AVAILABLE_MODELS.map(m => ({
-                    id: generateId(),
-                    role: "assistant",
-                    content: getDummyResponse(m.name, cleanText),
-                    modelName: m.name,
-                    voteCount: Math.floor(Math.random() * 100),
-                    isWinner: false
-                }))
-                // Determine winner
-                const maxVotes = Math.max(...modelResponses.map(r => r.voteCount || 0))
-                modelResponses.forEach(r => {
-                    if (r.voteCount === maxVotes) r.isWinner = true
-                })
-            } else {
-                // Standard
-                modelResponses = [{
-                    id: generateId(),
-                    role: "assistant",
-                    content: getDummyResponse("Assistant", cleanText),
-                    modelName: "Assistant"
-                }]
-            }
-
             return {
                 ...n,
                 variant: nextVariant,
                 width: nextVariant === "multi-model" ? NODE_WIDTH_MULTI : NODE_WIDTH_STANDARD,
-                messages: [...n.messages, { id: userMsgId, role: "user", content: cleanText }],
-                responses: [...n.responses, { id: responseId, modelResponses }]
+                messages: [...n.messages, { id: userMsgId, role: "user" as const, content: cleanText }],
+                responses: [...n.responses, { id: responseId, modelResponses: loadingResponses }]
             }
         }))
+
+        // Build conversation history from this node's messages
+        const conversationHistory = node.messages.map(m => ({
+            role: m.role,
+            content: m.content
+        }))
+
+        // Call the backend API
+        try {
+            const res = await fetch("/api/canvas-chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    message: cleanText,
+                    variant: nextVariant,
+                    models: selectedModelIds,
+                    conversationHistory,
+                }),
+            })
+
+            const data = await res.json()
+
+            if (data.success && data.responses) {
+                // Map API responses to ChatMessage format
+                const realResponses: ChatMessage[] = data.responses.map((r: { modelId: string; displayName: string; content: string; voteCount?: number; isWinner?: boolean }) => ({
+                    id: generateId(),
+                    role: "assistant" as const,
+                    content: r.content,
+                    modelName: r.displayName,
+                    voteCount: r.voteCount,
+                    isWinner: r.isWinner,
+                }))
+
+                // Replace loading placeholder with real responses
+                setNodes(prev => prev.map(n => {
+                    if (n.id !== nodeId) return n
+                    return {
+                        ...n,
+                        responses: n.responses.map(resp =>
+                            resp.id === responseId
+                                ? { ...resp, modelResponses: realResponses }
+                                : resp
+                        )
+                    }
+                }))
+            } else {
+                // Error from API — show error message
+                setNodes(prev => prev.map(n => {
+                    if (n.id !== nodeId) return n
+                    return {
+                        ...n,
+                        responses: n.responses.map(resp =>
+                            resp.id === responseId
+                                ? {
+                                    ...resp,
+                                    modelResponses: [{
+                                        id: generateId(),
+                                        role: "assistant" as const,
+                                        content: `⚠️ ${data.error || "Failed to get a response."}`,
+                                        modelName: "System"
+                                    }]
+                                }
+                                : resp
+                        )
+                    }
+                }))
+            }
+        } catch (err) {
+            // Network error
+            setNodes(prev => prev.map(n => {
+                if (n.id !== nodeId) return n
+                return {
+                    ...n,
+                    responses: n.responses.map(resp =>
+                        resp.id === responseId
+                            ? {
+                                ...resp,
+                                modelResponses: [{
+                                    id: generateId(),
+                                    role: "assistant" as const,
+                                    content: `⚠️ Network error: ${String(err)}`,
+                                    modelName: "System"
+                                }]
+                            }
+                            : resp
+                    )
+                }
+            }))
+        }
     }
 
     /* LOGIC: BRANCHING */
