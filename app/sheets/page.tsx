@@ -1,7 +1,7 @@
-import ChatApp2 from "@/components/dashboard/ChatApp2"
+import ChatSheets from "@/components/dashboard/ChatSheets"
 
 export default async function Page() {
     return (
-        <ChatApp2 />
+        <ChatSheets />
     )
 }

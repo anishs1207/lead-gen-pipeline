@@ -1,4 +1,4 @@
-import CanvasChatBoard from "@/components/new/CanvasChat";
+import CanvasChatBoard from "@/components/canvas/CanvasChat";
 
 export default async function Page() {
     return (

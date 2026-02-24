@@ -194,15 +194,15 @@ export default function SpreadsheetInstances({
                             <div
                                 key={spreadsheet.id}
                                 className={`group flex items-center gap-2 px-4 py-2 cursor-pointer transition-colors ${currentId === spreadsheet.id
-                                        ? 'bg-indigo-50 dark:bg-indigo-900/30 border-r-2 border-indigo-500'
-                                        : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 border-r-2 border-indigo-500'
+                                    : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
                                     }`}
                                 onClick={() => onSelect(spreadsheet.id)}
                             >
                                 <FileSpreadsheet
                                     className={`w-4 h-4 flex-shrink-0 ${currentId === spreadsheet.id
-                                            ? 'text-indigo-500'
-                                            : 'text-gray-400'
+                                        ? 'text-indigo-500'
+                                        : 'text-gray-400'
                                         }`}
                                 />
 
@@ -239,8 +239,8 @@ export default function SpreadsheetInstances({
                                     <>
                                         <div className="flex-1 min-w-0">
                                             <div className={`text-sm truncate ${currentId === spreadsheet.id
-                                                    ? 'font-medium text-indigo-700 dark:text-indigo-300'
-                                                    : 'text-gray-700 dark:text-gray-300'
+                                                ? 'font-medium text-indigo-700 dark:text-indigo-300'
+                                                : 'text-gray-700 dark:text-gray-300'
                                                 }`}>
                                                 {spreadsheet.name}
                                             </div>

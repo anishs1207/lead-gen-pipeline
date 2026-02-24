@@ -26,7 +26,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Markdown } from "@/components/ui/markdown"
-import ModeToggle from "../dashboard/ModeToggle"
+import ModeToggle from "../chat/ModeToggle"
 
 /* ---------------- DOMAIN TYPES ---------------- */
 

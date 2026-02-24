@@ -594,7 +594,7 @@ import {
 
 import { useEffect } from "react"
 
-export function SidebarRight(
+export default function SidebarRight(
     props: React.ComponentProps<typeof Sidebar>
 ) {
     const [prompt, setPrompt] = useState("")

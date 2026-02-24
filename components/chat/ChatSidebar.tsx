@@ -32,6 +32,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal, Pencil, Trash } from "lucide-react"
 
+// writer her code to connect the chat with the sheets here
+
 // Initial conversation history
 const conversationHistory = [
     {

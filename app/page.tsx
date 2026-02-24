@@ -1,7 +1,5 @@
-import ChatApp from "@/components/dashboard/ChatApp"
-
-export default async function Page() {
+export default async function LandingPage() {
   return (
-    <ChatApp />
+    <p>hello</p>
   )
 }

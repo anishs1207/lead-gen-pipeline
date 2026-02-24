@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.29",
+    "@ai-sdk/react": "^3.0.92",
     "@google/generative-ai": "^0.24.1",
     "@mendable/firecrawl-js": "^1.21.1",
     "@modelcontextprotocol/sdk": "^1.25.3",
@@ -25,7 +27,7 @@
     "@types/axios": "^0.9.36",
     "@types/dotenv": "^6.1.1",
     "@xyflow/react": "^12.10.0",
-    "ai": "^6.0.77",
+    "ai": "^6.0.90",
     "axios": "^1.13.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -45,7 +47,8 @@
     "tailwind-merge": "^3.4.0",
     "use-stick-to-bottom": "^1.1.1",
     "uuid": "^13.0.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
