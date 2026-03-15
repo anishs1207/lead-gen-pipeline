@@ -10,7 +10,9 @@
 !.yarn/releases
 !.yarn/versions
 
-TODO.md
+# notes
+/docs
+/updates
 
 # testing
 /coverage

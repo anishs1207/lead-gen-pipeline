@@ -73,7 +73,7 @@ export const SpreadsheetStore = {
 
     const updated: SpreadsheetInstance = {
       ...spreadsheet,
-      leads: [...spreadsheet.leads, ...leads],
+      leads: [...leads, ...spreadsheet.leads],
       updatedAt: new Date(),
     };
     spreadsheets.set(spreadsheetId, updated);

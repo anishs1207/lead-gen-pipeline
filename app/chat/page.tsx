@@ -32,7 +32,7 @@ export default function ChatApp() {
                     <Sheets data={data} setData={setData} />
                 </div>
             </SidebarInset>
-            <SidebarRight />
+            <SidebarRight data={data} setData={setData} />
         </SidebarProvider >
     )
 }

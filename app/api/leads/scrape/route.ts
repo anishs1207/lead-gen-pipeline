@@ -11,11 +11,9 @@ const firecrawl = new Firecrawl({ apiKey: process.env.FIRECRAWL_API_KEY || '' })
 interface ScrapedPage {
   url?: string;
   markdown?: string;
-  html?: string;
   metadata?: {
     title?: string;
     description?: string;
-    keywords?: string[];
     [key: string]: unknown;
   };
 }
@@ -41,22 +39,28 @@ async function scrapeWebsite(url: string): Promise<ScrapedPage | null> {
   }
 }
 
-// Search and scrape multiple pages for a query
+// Search and scrape multiple pages for a query using Firecrawl Search (Improved)
 async function searchAndScrape(query: string): Promise<ScrapedPage[]> {
   try {
-    // Use Firecrawl's map feature to find relevant URLs, or scrape a search query directly
-    // For now, we'll try to search and get content from a few relevant sources
-    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+    console.log(`[Scrape] Running Firecrawl search for: ${query}`);
     
-    // Try to get search results page (may be blocked by Google)
-    const searchResult = await scrapeWebsite(searchUrl);
-    
-    if (searchResult?.markdown) {
-      return [searchResult];
+    // Use Firecrawl's search endpoint which is more reliable than scraping Google
+    const searchRes = await (firecrawl as any).search(query, {
+      limit: 5,
+      scrapeOptions: { formats: ['markdown'] }
+    });
+
+    if (searchRes.success && searchRes.data) {
+      return searchRes.data.map((item: any) => ({
+        url: item.url,
+        markdown: item.markdown,
+        metadata: {
+          title: item.title,
+          description: item.description
+        }
+      }));
     }
 
-    // Fallback: try to scrape LinkedIn search or other sources
-    // This is a simplified approach - in production you'd use proper search APIs
     return [];
   } catch (error) {
     console.error('Search and scrape error:', error);
@@ -70,131 +74,91 @@ async function extractLeadsFromContent(
   query: string,
   maxResults: number
 ): Promise<Lead[]> {
+  if (scrapedContent.length === 0) return [];
+
   const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
   const contentSummary = scrapedContent
-    .map((page) => `URL: ${page.url}\nContent: ${page.markdown?.slice(0, 5000) || 'No content'}`)
+    .map((page) => `### Source: ${page.url}\n${page.markdown?.slice(0, 8000) || 'No content'}`)
     .join('\n\n---\n\n');
 
-  const prompt = `You are a lead generation specialist. Based on the following scraped web content and search query, extract real contact/lead information.
+  const prompt = `You are a real-world lead generation specialist. Extract accurate contact information from the provided content.
 
-Search Query: "${query}"
+SEARCH CONTEXT: "${query}"
 
-Scraped Content:
-${contentSummary || 'No content was scraped. Please generate realistic leads based on the query.'}
+SCRAPED CONTENT:
+${contentSummary}
 
-Extract up to ${maxResults} leads with these fields:
-- name: Full name (real or realistic)
-- company: Company name
-- role: Job title
-- linkedin: LinkedIn URL (use format: linkedin.com/in/username)
-- twitter: Twitter handle (use format: @username)
-- email: Professional email (realistic format)
-- website: Company website (optional)
-- score: Lead quality score 1-100 (based on relevance to query)
-- tags: Array of relevant tags
+EXTRACTION RULES:
+1. Extract ONLY real people mentioned in the text.
+2. Prioritize fields found EXPLICITLY in the text.
+3. DO NOT hallucinate LinkedIn URLs. If a LinkedIn URL for the person is not in the text, leave the field empty.
+4. DO NOT invent email addresses. If not found, use a professional format ONLY if you can infer the domain correctly from the website, otherwise leave empty.
+5. Provide a quality score (1-100) based on how complete the found data is.
 
-IMPORTANT: If the scraped content contains real people/companies, use that data. Otherwise, generate realistic mock leads that match the search query context.
+OUTPUT FORMAT: Return ONLY a valid JSON array. Each element:
+{
+  "name": "Full Name",
+  "company": "Company Name",
+  "role": "Job Title",
+  "linkedin": "linkedin.com/in/username",
+  "twitter": "@handle",
+  "email": "email@domain.com",
+  "website": "Company website",
+  "score": 0-100,
+  "tags": ["tag1", "tag2"]
+}
 
-Return ONLY a valid JSON array of leads, no markdown formatting or extra text.`;
+If no real leads are found in the content, return an empty array []. DO NOT make up fictional people.`;
 
   try {
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
 
-    // Parse the JSON response
     const cleanedText = text.replace(/```json\n?|\n?```/g, '').trim();
-    const extractedLeads = JSON.parse(cleanedText);
+    
+    // Find JSON array bounds
+    const start = cleanedText.indexOf('[');
+    const end = cleanedText.lastIndexOf(']');
+    if (start === -1 || end === -1) return [];
 
-    // Transform to our Lead format
-    const leads: Lead[] = extractedLeads.map((lead: Record<string, unknown>) => ({
+    const extractedLeads = JSON.parse(cleanedText.slice(start, end + 1));
+
+    const leads: Lead[] = extractedLeads.map((lead: Record<string, any>) => ({
       id: uuidv4(),
-      name: (lead.name as string) || 'Unknown',
-      company: lead.company as string,
-      role: lead.role as string,
-      linkedin: lead.linkedin as string,
-      twitter: lead.twitter as string,
-      email: lead.email as string,
-      website: lead.website as string,
+      name: lead.name || 'Unknown',
+      company: lead.company,
+      role: lead.role,
+      linkedin: lead.linkedin,
+      twitter: lead.twitter,
+      email: lead.email,
+      website: lead.website,
       status: 'new' as const,
       score: typeof lead.score === 'number' ? lead.score : 50,
       signals: [],
-      tags: [],
-      source: scrapedContent.length > 0 ? 'firecrawl' : 'ai_generated',
+      tags: lead.tags || [],
+      source: 'firecrawl_real',
       createdAt: new Date(),
       updatedAt: new Date(),
     }));
 
-    return leads;
+    return leads.slice(0, maxResults);
   } catch (error) {
     console.error('Error extracting leads from content:', error);
     return [];
   }
 }
 
-// Scrape leads from a specific URL
+// Scrape leads from a specific URL (Improved)
 async function scrapeLeadsFromUrl(url: string, maxResults: number): Promise<Lead[]> {
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
-  // Scrape the URL using Firecrawl
   const scrapedPage = await scrapeWebsite(url);
 
   if (!scrapedPage?.markdown) {
-    console.log('Could not scrape URL, falling back to AI generation');
     return [];
   }
 
-  const prompt = `You are a lead generation specialist. Analyze this scraped webpage content and extract potential leads/contacts.
-
-URL: ${url}
-Content:
-${scrapedPage.markdown.slice(0, 10000)}
-
-Extract up to ${maxResults} leads with these fields:
-- name: Full name
-- company: Company name (from the website/content)
-- role: Job title/role
-- linkedin: LinkedIn URL if found
-- twitter: Twitter handle if found
-- email: Email if found
-- website: The source website
-- score: Lead quality score 1-100
-- tags: Relevant tags based on the content
-
-Return ONLY a valid JSON array of leads, no markdown formatting.`;
-
-  try {
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
-
-    const cleanedText = text.replace(/```json\n?|\n?```/g, '').trim();
-    const extractedLeads = JSON.parse(cleanedText);
-
-    const leads: Lead[] = extractedLeads.map((lead: Record<string, unknown>) => ({
-      id: uuidv4(),
-      name: (lead.name as string) || 'Unknown',
-      company: lead.company as string,
-      role: lead.role as string,
-      linkedin: lead.linkedin as string,
-      twitter: lead.twitter as string,
-      email: lead.email as string,
-      website: url,
-      status: 'new' as const,
-      score: typeof lead.score === 'number' ? lead.score : 50,
-      signals: [],
-      tags: [],
-      source: 'firecrawl',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }));
-
-    return leads;
-  } catch (error) {
-    console.error('Error extracting leads from URL:', error);
-    return [];
-  }
+  return extractLeadsFromContent([scrapedPage], `Extraction from ${url}`, maxResults);
 }
 
 export async function POST(request: NextRequest) {
@@ -211,70 +175,16 @@ export async function POST(request: NextRequest) {
 
     let leads: Lead[] = [];
 
-    // If a specific URL is provided, scrape that URL
     if (url) {
-      console.log(`Scraping URL: ${url}`);
       leads = await scrapeLeadsFromUrl(url, maxResults);
     } else {
-      // Otherwise, search and scrape based on query
-      console.log(`Searching for: ${query}`);
-      
-      // Try to scrape relevant content
       const scrapedContent = await searchAndScrape(query);
-      
-      // Extract leads from scraped content (or generate if no content)
       leads = await extractLeadsFromContent(scrapedContent, query, maxResults);
     }
 
-    // If no leads found, generate AI-based leads
-    if (leads.length === 0) {
-      console.log('No leads scraped, generating AI-based leads');
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
-      const prompt = `You are a lead generation assistant. Based on the following search query, generate ${maxResults} realistic leads in JSON format.
-
-Query: "${query || 'business professionals'}"
-
-Generate leads with these fields:
-- name: Full name
-- company: Company name
-- role: Job title
-- linkedin: LinkedIn URL (use format: linkedin.com/in/username)
-- twitter: Twitter handle (use format: @username)
-- email: Professional email
-- website: Company website (optional)
-- score: Lead quality score 1-100
-- tags: Array of relevant tags
-
-Return ONLY a valid JSON array of leads, no markdown formatting.`;
-
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-
-      const cleanedText = text.replace(/```json\n?|\n?```/g, '').trim();
-      const generatedLeads = JSON.parse(cleanedText);
-
-      leads = generatedLeads.map((lead: Record<string, unknown>) => ({
-        id: uuidv4(),
-        name: (lead.name as string) || 'Unknown',
-        company: lead.company as string,
-        role: lead.role as string,
-        linkedin: lead.linkedin as string,
-        twitter: lead.twitter as string,
-        email: lead.email as string,
-        website: lead.website as string,
-        status: 'new' as const,
-        score: typeof lead.score === 'number' ? lead.score : 50,
-        signals: [],
-        tags: [],
-        source: 'ai_generated',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }));
-    }
-
-    // If spreadsheetId is provided, add leads to that spreadsheet
+    // FINAL GATE: If leads is empty, do NOT generate fake ones.
+    // We notify the user instead.
+    
     if (spreadsheetId && leads.length > 0) {
       const updated = SpreadsheetStore.addLeads(spreadsheetId, leads);
       if (!updated) {
@@ -285,14 +195,14 @@ Return ONLY a valid JSON array of leads, no markdown formatting.`;
       }
     }
 
-    const response: ScrapeResponse = {
+    return NextResponse.json({
       success: true,
       leads,
-      message: `Found ${leads.length} leads for "${query || url}"`,
+      message: leads.length > 0 
+        ? `Successfully found and added ${leads.length} real leads.` 
+        : `I searched the web but couldn't find any clear lead data for "${query || url}". Please try a more specific search.`,
       totalFound: leads.length,
-    };
-
-    return NextResponse.json(response);
+    });
   } catch (error) {
     console.error('Scrape error:', error);
     return NextResponse.json(
