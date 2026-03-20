@@ -126,10 +126,6 @@ const DUMMY_SUGGESTIONS = [
   ],
 ];
 
-function pick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -139,12 +135,20 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { messages } = body;
 
-    const lastUserMessage = messages?.findLast((m: any) => m.role === 'user');
-    const userText: string =
-      lastUserMessage?.parts?.find((p: any) => p.type === 'text')?.text ||
-      lastUserMessage?.content ||
-      'your question';
+    // messages is expected to be an array of objects with role, content, etc.
+    // We'll type m to avoid 'any'.
+    interface MessagePart {
+        type: string;
+        text?: string;
+    }
+    interface ChatMessage {
+        role: string;
+        content?: string;
+        parts?: MessagePart[];
+    }
 
+    const _lastUserMessage = (messages as ChatMessage[])?.findLast((m: ChatMessage) => m.role === 'user');
+    
     // Pick a consistent random index so reasoning/response/suggestions feel coherent
     const idx = Math.floor(Math.random() * DUMMY_RESPONSES.length);
     const reasoningSteps = DUMMY_REASONING_SETS[idx];
@@ -170,13 +174,11 @@ export async function POST(request: NextRequest) {
         send({ type: 'start-step' });
 
         // 2. Stream reasoning steps live — one every ~600ms
-        //    Using AI SDK v6 `data-*` custom chunk type. Each step gets a stable `id`
-        //    so the SDK can deduplicate/update it in message.parts when marking done.
         for (let i = 0; i < reasoningSteps.length; i++) {
           await sleep(500 + Math.random() * 300);
           send({
             type: 'data-reasoning-step',
-            id: `step-${i}`,       // stable id — SDK matches by type+id to update in-place
+            id: `step-${i}`,
             data: {
               index: i,
               icon: reasoningSteps[i].icon,
@@ -186,7 +188,7 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        // Mark ALL steps as done (update each in-place via their ids)
+        // Mark ALL steps as done
         await sleep(300);
         for (let i = 0; i < reasoningSteps.length; i++) {
           send({

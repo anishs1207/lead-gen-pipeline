@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
 
-    const { message, spreadsheetData, conversationHistory = [] } = body;
+    const { message, spreadsheetData } = body;
 
     if (!message) {
       return NextResponse.json({ success: false, message: 'Message is required' }, { status: 400 });

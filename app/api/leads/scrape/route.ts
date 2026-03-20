@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import Firecrawl from '@mendable/firecrawl-js';
-import { Lead, ScrapeResponse } from '@/lib/types';
+import { Lead } from '@/lib/types';
 import { SpreadsheetStore } from '@/lib/spreadsheet-store';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -45,13 +45,18 @@ async function searchAndScrape(query: string): Promise<ScrapedPage[]> {
     console.log(`[Scrape] Running Firecrawl search for: ${query}`);
     
     // Use Firecrawl's search endpoint which is more reliable than scraping Google
-    const searchRes = await (firecrawl as any).search(query, {
+    const searchRes = await (firecrawl as unknown as { 
+      search: (query: string, options: { limit: number; scrapeOptions: { formats: string[] } }) => Promise<{ 
+        success: boolean; 
+        data: Array<{ url: string; markdown: string; title: string; description: string }> 
+      }> 
+    }).search(query, {
       limit: 5,
       scrapeOptions: { formats: ['markdown'] }
     });
 
     if (searchRes.success && searchRes.data) {
-      return searchRes.data.map((item: any) => ({
+      return searchRes.data.map((item: { url: string; markdown: string; title: string; description: string }) => ({
         url: item.url,
         markdown: item.markdown,
         metadata: {
@@ -125,7 +130,17 @@ If no real leads are found in the content, return an empty array []. DO NOT make
 
     const extractedLeads = JSON.parse(cleanedText.slice(start, end + 1));
 
-    const leads: Lead[] = extractedLeads.map((lead: Record<string, any>) => ({
+    const leads: Lead[] = extractedLeads.map((lead: {
+      name?: string;
+      company?: string;
+      role?: string;
+      linkedin?: string;
+      twitter?: string;
+      email?: string;
+      website?: string;
+      score?: number;
+      tags?: string[];
+    }) => ({
       id: uuidv4(),
       name: lead.name || 'Unknown',
       company: lead.company,

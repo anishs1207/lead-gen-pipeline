@@ -3,50 +3,21 @@
 import * as React from "react";
 import { useState, useRef, useEffect } from "react";
 import {
-    Plus,
     ArrowUp,
     Globe,
-    MoreHorizontal,
     BellRing,
-    ChevronsUpDown,
-    BadgeCheck,
-    Bell,
-    CreditCard,
-    LogOut,
     Sparkles
 } from "lucide-react";
-
+import axios from "axios";
 import {
     Sidebar,
     SidebarContent,
     SidebarHeader,
-    SidebarMenu,
-    SidebarMenuButton,
-    SidebarMenuItem,
-    useSidebar,
 } from "@/components/ui/sidebar";
-
-import {
-    Avatar,
-    AvatarFallback,
-    AvatarImage,
-} from "@/components/ui/avatar";
-
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuGroup,
-    DropdownMenuItem,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-
 import {
     ChatContainerContent,
     ChatContainerRoot,
 } from "@/components/ui/chat-container";
-
 import {
     Message,
     MessageContent,
@@ -58,12 +29,12 @@ import {
     PromptInputActions,
     PromptInputTextarea,
 } from "@/components/ui/prompt-input";
-
+import ThinkingState from "./ThinkingState";
 import { ScrollButton } from "@/components/ui/scroll-button";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import NavUser from "./NavUser";
 
-// --- Types ---
 type ChatMessage = {
     id: number;
     role: "user" | "assistant";
@@ -76,116 +47,6 @@ const mockUser = {
     email: "pro@leadgen.ai",
     avatar: "https://github.com/shadcn.png",
 };
-
-// --- Components ---
-
-function NavUser({ user }: { user: typeof mockUser }) {
-    const { isMobile } = useSidebar();
-
-    return (
-        <SidebarMenu>
-            <SidebarMenuItem>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <SidebarMenuButton
-                            size="lg"
-                            className="bg-sidebar-accent/50 hover:bg-sidebar-accent transition-all duration-300"
-                        >
-                            <Avatar className="h-8 w-8 rounded-lg border border-primary/20">
-                                <AvatarImage src={user.avatar} alt={user.name} />
-                                <AvatarFallback className="rounded-lg bg-primary/10 text-primary">AI</AvatarFallback>
-                            </Avatar>
-                            <div className="grid flex-1 text-left text-sm leading-tight">
-                                <span className="truncate font-semibold">{user.name}</span>
-                                <span className="truncate text-xs text-muted-foreground">{user.email}</span>
-                            </div>
-                            <ChevronsUpDown className="ml-auto size-4 text-muted-foreground" />
-                        </SidebarMenuButton>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                        className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-xl p-1 shadow-xl animate-in fade-in zoom-in duration-200"
-                        side={isMobile ? "bottom" : "right"}
-                        align="start"
-                        sideOffset={8}
-                    >
-                        <DropdownMenuLabel className="p-2 font-normal">
-                            <div className="flex items-center gap-3 px-1 py-1 text-left text-sm">
-                                <Avatar className="h-10 w-10 rounded-lg border border-primary/20">
-                                    <AvatarImage src={user.avatar} alt={user.name} />
-                                    <AvatarFallback className="rounded-lg">AI</AvatarFallback>
-                                </Avatar>
-                                <div className="grid flex-1 text-left text-sm leading-tight">
-                                    <span className="truncate font-semibold text-base">{user.name}</span>
-                                    <span className="truncate text-xs text-muted-foreground">{user.email}</span>
-                                </div>
-                            </div>
-                        </DropdownMenuLabel>
-                        <DropdownMenuSeparator className="bg-primary/10" />
-                        <DropdownMenuGroup>
-                            <DropdownMenuItem className="focus:bg-primary/10 focus:text-primary cursor-pointer gap-2 transition-colors">
-                                <Sparkles className="size-4" />
-                                <span>Upgrade to Pro</span>
-                            </DropdownMenuItem>
-                        </DropdownMenuGroup>
-                        <DropdownMenuSeparator className="bg-primary/10" />
-                        <DropdownMenuGroup>
-                            <DropdownMenuItem className="focus:bg-primary/10 cursor-pointer gap-2">
-                                <BadgeCheck className="size-4" />
-                                <span>Account Settings</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="focus:bg-primary/10 cursor-pointer gap-2">
-                                <CreditCard className="size-4" />
-                                <span>Billing History</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="focus:bg-primary/10 cursor-pointer gap-2">
-                                <Bell className="size-4" />
-                                <span>Notifications</span>
-                            </DropdownMenuItem>
-                        </DropdownMenuGroup>
-                        <DropdownMenuSeparator className="bg-primary/10" />
-                        <DropdownMenuItem className="text-destructive focus:bg-destructive/10 cursor-pointer gap-2">
-                            <LogOut className="size-4" />
-                            <span>Log out</span>
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            </SidebarMenuItem>
-        </SidebarMenu>
-    );
-}
-
-function ThinkingState() {
-    const [messageIndex, setMessageIndex] = useState(0);
-    const messages = [
-        "Analyzing your request...",
-        "Processing spreadsheet data...",
-        "Generating intelligent insights...",
-        "Updating your lead grid...",
-        "Finalizing suggestions..."
-    ];
-
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setMessageIndex((prev) => (prev + 1) % messages.length);
-        }, 1800);
-        return () => clearInterval(interval);
-    }, []);
-
-    return (
-        <div className="flex items-center gap-3 py-2 px-3 bg-primary/5 rounded-xl border border-primary/10 animate-in fade-in slide-in-from-left-2 duration-300">
-            <div className="flex gap-1.5">
-                <span className="h-2 w-2 animate-bounce rounded-full bg-primary/60 [animation-delay:-0.3s]"></span>
-                <span className="h-2 w-2 animate-bounce rounded-full bg-primary/60 [animation-delay:-0.15s]"></span>
-                <span className="h-2 w-2 animate-bounce rounded-full bg-primary/60"></span>
-            </div>
-            <span className="text-xs font-medium text-primary/80 tracking-tight italic">
-                {messages[messageIndex]}
-            </span>
-        </div>
-    );
-}
-
-// --- Main Component ---
 
 export default function SidebarRight({
     data,
@@ -226,15 +87,11 @@ export default function SidebarRight({
         setIsLoading(true);
 
         try {
-            const response = await fetch('/api/chat-matrix', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message: userText,
-                    spreadsheetData: data,
-                }),
+            const response = await axios.post('/api/chat-matrix', {
+                message: userText,
+                spreadsheetData: data,
             });
-            const result = await response.json();
+            const result: any = response.data;
 
             if (result.success) {
                 if (result.updatedData && setData) setData(result.updatedData);
@@ -282,12 +139,11 @@ export default function SidebarRight({
         setIsLoading(true);
 
         try {
-            const response = await fetch('/api/leads/scrape', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: searchQuery })
+            // Refactored to axios for consistency
+            const response = await axios.post('/api/leads/scrape', {
+                query: searchQuery
             });
-            const result = await response.json();
+            const result: any = response.data;
 
             if (result.success && result.leads) {
                 const newRows = result.leads.map((l: any) => [
@@ -336,15 +192,12 @@ export default function SidebarRight({
         setIsLoading(true);
 
         try {
-            const response = await fetch('/api/chat-matrix', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    message: "Analyze the leads in my spreadsheet and detect 0-3 realistic buying intent signals for each one (e.g. recent funding, hiring, job change, website visit). Add a new column called 'Signals' containing your analysis.",
-                    spreadsheetData: data,
-                }),
+            // Optimized API call with axios
+            const response = await axios.post('/api/chat-matrix', {
+                message: "Analyze the leads in my spreadsheet and detect 0-3 realistic buying intent signals for each one (e.g. recent funding, hiring, job change, website visit). Add a new column called 'Signals' containing your analysis.",
+                spreadsheetData: data,
             });
-            const result = await response.json();
+            const result: any = response.data;
 
             if (result.success) {
                 if (result.updatedData && setData) setData(result.updatedData);
