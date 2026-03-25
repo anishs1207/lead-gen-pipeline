@@ -23,7 +23,7 @@ type FileUploadContextValue = {
 const FileUploadContext = createContext<FileUploadContextValue | null>(null)
 
 export type FileUploadProps = {
-  onFilesAdded: (files: File[]) => void
+  onFilesAdded: (_files: File[]) => void
   children: React.ReactNode
   multiple?: boolean
   accept?: string
@@ -168,8 +168,10 @@ function FileUploadContent({ className, ...props }: FileUploadContentProps) {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    setMounted(true)
-    return () => setMounted(false)
+    Promise.resolve().then(() => setMounted(true))
+    return () => {
+      Promise.resolve().then(() => setMounted(false))
+    }
   }, [])
 
   if (!context?.isDragging || !mounted || context?.disabled) {

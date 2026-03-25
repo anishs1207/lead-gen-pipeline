@@ -132,22 +132,10 @@ function sleep(ms: number) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { messages } = body;
+    await request.json();
+    // In dummy implementation, message history is ignored
 
-    // messages is expected to be an array of objects with role, content, etc.
-    // We'll type m to avoid 'any'.
-    interface MessagePart {
-        type: string;
-        text?: string;
-    }
-    interface ChatMessage {
-        role: string;
-        content?: string;
-        parts?: MessagePart[];
-    }
-
-    const _lastUserMessage = (messages as ChatMessage[])?.findLast((m: ChatMessage) => m.role === 'user');
+    // picking random response set
     
     // Pick a consistent random index so reasoning/response/suggestions feel coherent
     const idx = Math.floor(Math.random() * DUMMY_RESPONSES.length);

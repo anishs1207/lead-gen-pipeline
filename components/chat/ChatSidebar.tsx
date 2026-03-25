@@ -13,14 +13,10 @@ import {
     SidebarContent,
     SidebarGroup,
     SidebarGroupLabel,
-    SidebarGroupContent,
     SidebarHeader,
-    SidebarMenuItem,
-    SidebarInset,
     SidebarMenu,
     SidebarMenuButton,
-    SidebarProvider,
-    SidebarTrigger,
+    SidebarMenuItem,
     SidebarFooter
 } from "@/components/ui/sidebar"
 import NavUser from "./NavUser";
@@ -258,7 +254,7 @@ export default function ChatSidebar() {
 
                                             <DropdownMenuContent align="end" side="right">
                                                 <DropdownMenuItem
-                                                    // @ts-expect-error
+                                                    // @ts-expect-error - handleRename not yet defined in current component
                                                     onClick={() => handleRename(conversation.id)}
                                                 >
                                                     <Pencil className="mr-2 h-4 w-4" />
@@ -267,7 +263,7 @@ export default function ChatSidebar() {
 
                                                 <DropdownMenuItem
                                                     className="text-destructive focus:text-destructive"
-                                                    //@ts-expect-error
+                                                    //@ts-expect-error - handleDelete not yet defined in current component
                                                     onClick={() => handleDelete(conversation.id)}
                                                 >
                                                     <Trash className="mr-2 h-4 w-4" />

@@ -38,12 +38,12 @@ export const Image = ({
     if (uint8Array && mediaType) {
       const blob = new Blob([uint8Array as BlobPart], { type: mediaType })
       const url = URL.createObjectURL(blob)
-      setObjectUrl(url)
+      Promise.resolve().then(() => setObjectUrl(url))
       return () => {
         URL.revokeObjectURL(url)
       }
     }
-    setObjectUrl(undefined)
+    Promise.resolve().then(() => setObjectUrl(undefined))
     return
   }, [uint8Array, mediaType])
 
@@ -64,13 +64,15 @@ export const Image = ({
     )
   }
 
+  // Next.js Image component
   return (
-    <img
-      src={src}
-      alt={alt}
-      className={cn("h-auto max-w-full overflow-hidden rounded-md", className)}
-      role="img"
-      {...props}
-    />
+    <div className={cn("relative overflow-hidden rounded-md", className)}>
+      <img
+        src={src}
+        alt={alt}
+        className="h-auto max-w-full"
+        {...props}
+      />
+    </div>
   )
 }

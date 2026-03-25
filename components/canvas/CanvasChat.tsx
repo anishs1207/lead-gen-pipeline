@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import { v4 as uuidv4 } from "uuid"
 import { Button } from "@/components/ui/button"
-import { Message, MessageContent } from "@/components/ui/message"
 import {
     PromptInput,
     PromptInputTextarea,
@@ -16,16 +15,17 @@ import {
     MousePointer2,
     X,
     LocateFixed,
-    Maximize2,
-    Minimize2,
     Combine,
     BrainCircuit,
     Layers,
     CheckCircle2,
-    Split
+    Split,
+    LayoutTemplate,
+    StickyNote
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Markdown } from "@/components/ui/markdown"
+import { Textarea } from "@/components/ui/textarea"
 import ModeToggle from "../chat/ModeToggle"
 
 /* ---------------- DOMAIN TYPES ---------------- */
@@ -41,7 +41,7 @@ interface ChatMessage {
     voteCount?: number // For panel voting
 }
 
-type NodeVariant = "standard" | "multi-model" | "panel-vote"
+type NodeVariant = "standard" | "multi-model" | "panel-vote" | "note"
 
 interface ChatNode {
     id: string
@@ -60,6 +60,7 @@ interface ChatNode {
     width: number
     height: number
     activeModelIndex: number // For paging or highlighting
+    noteText?: string // For note variants
 }
 
 /* ---------------- CONSTANTS ---------------- */
@@ -86,7 +87,7 @@ function generateId() {
 /* ---------------- COMPONENTS ---------------- */
 
 // 1. MINI MAP 
-function MiniMap({ nodes, camera, onNavigate }: { nodes: ChatNode[], camera: { x: number, y: number, scale: number }, onNavigate: (x: number, y: number) => void }) {
+function MiniMap({ nodes, camera, onNavigate }: { nodes: ChatNode[], camera: { x: number, y: number, scale: number }, onNavigate: (_x: number, _y: number) => void }) {
     // Safe window dimensions for SSR
     const [windowSize, setWindowSize] = useState({ w: 1200, h: 800 })
     useEffect(() => {
@@ -178,14 +179,16 @@ interface ChatNodeCardProps {
     node: ChatNode
     scale: number
     isSelected: boolean
-    onSend: (nodeId: string, text: string) => void
-    onBranch: (nodeId: string) => void
-    onBranchFromText: (nodeId: string, text: string) => void
-    onDelete: (nodeId: string) => void
-    onStartDrag: (e: React.MouseEvent, nodeId: string) => void
-    onSelect: (nodeId: string) => void
-    onResize: (nodeId: string, height: number) => void
-    onMerge: (nodeId: string) => void
+    onSend: (_nodeId: string, _text: string) => void
+    onBranch: (_nodeId: string) => void
+    onBranchFromText: (_nodeId: string, _text: string) => void
+    onDelete: (_nodeId: string) => void
+    onStartDrag: (_e: React.MouseEvent, _nodeId: string) => void
+    onSelect: (_nodeId: string) => void
+    onResize: (_nodeId: string, _height: number) => void
+    onMerge: (_nodeId: string) => void
+    onUpdateNode: (_nodeId: string, _updates: Partial<ChatNode>) => void
+    onBranchToNote: (_nodeId: string, _content: string) => void
 }
 
 function ChatNodeCard({
@@ -199,13 +202,14 @@ function ChatNodeCard({
     onStartDrag,
     onSelect,
     onResize,
-    onMerge
+    onMerge,
+    onUpdateNode,
+    onBranchToNote
 }: ChatNodeCardProps) {
     const [input, setInput] = useState("")
     const [selectionPos, setSelectionPos] = useState<{ x: number, y: number } | null>(null)
     const [selectedText, setSelectedText] = useState("")
     const scrollRef = useRef<HTMLDivElement>(null)
-    const resizeRef = useRef<HTMLDivElement>(null)
 
     // Auto-scroll logic
     useEffect(() => {
@@ -301,6 +305,18 @@ function ChatNodeCard({
                                     <div className="prose prose-sm dark:prose-invert max-w-none break-words"><Markdown>{res.content}</Markdown></div>
 
                                     {/* Vote highlight or Panel actions */}
+                                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6 text-muted-foreground hover:text-amber-500"
+                                            onClick={() => onBranchToNote(node.id, res.content)}
+                                            title="Copy to Note"
+                                        >
+                                            <StickyNote size={12} />
+                                        </Button>
+                                    </div>
+
                                     {node.variant === "panel-vote" && res.isWinner && (
                                         <div className="absolute -top-2 -right-2 bg-green-500 text-white rounded-full p-1 shadow">
                                             <CheckCircle2 size={12} />
@@ -340,7 +356,7 @@ function ChatNodeCard({
                     height: node.height,
                     transformOrigin: "top left",
                 }}
-                onMouseDown={(e) => {
+                onMouseDown={() => {
                     onSelect(node.id)
                 }}
             >
@@ -392,52 +408,68 @@ function ChatNodeCard({
                     </div>
                 </div>
 
-                {/* BODY */}
-                <div
-                    ref={scrollRef}
-                    className="flex-1 overflow-y-auto p-4 bg-background/50"
-                    onWheel={(e) => e.stopPropagation()}
-                    onMouseUp={handleMouseUp}
-                    // onMouseDown to propagate selection clearing is handled by standard browser behavior usually,
-                    // but we need to ensure we don't start dragging
-                    onMouseDown={e => e.stopPropagation()}
-                >
-                    {node.messages.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm italic opacity-70">
-                            <MousePointer2 className="w-8 h-8 mb-2 opacity-20" />
-                            <p>Start a conversation</p>
-                            <div className="text-[10px] mt-2 opacity-60">Try "/multi" or "/vote" in prompt</div>
-                        </div>
-                    ) : renderResponses()}
-                </div>
-
-                {/* FOOTER */}
-                <div className="p-0 border-t bg-background" onMouseDown={e => e.stopPropagation()}>
-                    <PromptInput
-                        value={input}
-                        onValueChange={setInput}
-                        onSubmit={handleSubmit}
-                        className="border-none rounded-none focus-within:ring-0 bg-transparent"
-                    >
-                        <PromptInputTextarea
-                            placeholder={`Reply (${node.variant})...`}
-                            className="min-h-[50px] max-h-[100px] text-sm py-3 resize-none bg-transparent"
+                {/* BODY (NOTE VARIANT) */}
+                {node.variant === "note" && (
+                    <div className="flex-1 p-4 bg-yellow-500/5 cursor-text" onMouseDown={e => e.stopPropagation()}>
+                        <Textarea
+                            value={node.noteText || ""}
+                            onChange={(e) => onUpdateNode(node.id, { noteText: e.target.value })}
+                            placeholder="Type a note..."
+                            className="w-full h-full bg-transparent border-none focus-visible:ring-0 resize-none text-sm font-medium"
                         />
-                        <PromptInputActions className="pb-2 pr-2">
-                            <Button
-                                size="icon"
-                                className={cn(
-                                    "h-8 w-8 rounded-full transition-all",
-                                    input.trim() ? "opacity-100 scale-100" : "opacity-0 scale-90"
-                                )}
-                                onClick={handleSubmit}
-                                disabled={!input.trim()}
-                            >
-                                <ArrowUp className="w-4 h-4" />
-                            </Button>
-                        </PromptInputActions>
-                    </PromptInput>
-                </div>
+                    </div>
+                )}
+
+                {/* BODY (CHAT VARIANTS) */}
+                {node.variant !== "note" && (
+                    <div
+                        ref={scrollRef}
+                        className="flex-1 overflow-y-auto p-4 bg-background/50"
+                        onWheel={(e) => e.stopPropagation()}
+                        onMouseUp={handleMouseUp}
+                        // onMouseDown to propagate selection clearing is handled by standard browser behavior usually,
+                        // but we need to ensure we don't start dragging
+                        onMouseDown={e => e.stopPropagation()}
+                    >
+                        {node.messages.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-sm italic opacity-70">
+                                <MousePointer2 className="w-8 h-8 mb-2 opacity-20" />
+                                <p>Start a conversation</p>
+                                <div className="text-[10px] mt-2 opacity-60">Try &quot;/multi&quot; or &quot;/vote&quot; in prompt</div>
+                            </div>
+                        ) : renderResponses()}
+                    </div>
+                )}
+
+                {/* FOOTER (CHAT ONLY) */}
+                {node.variant !== "note" && (
+                    <div className="p-0 border-t bg-background" onMouseDown={e => e.stopPropagation()}>
+                        <PromptInput
+                            value={input}
+                            onValueChange={setInput}
+                            onSubmit={handleSubmit}
+                            className="border-none rounded-none focus-within:ring-0 bg-transparent"
+                        >
+                            <PromptInputTextarea
+                                placeholder={`Reply (${node.variant})...`}
+                                className="min-h-[50px] max-h-[100px] text-sm py-3 resize-none bg-transparent"
+                            />
+                            <PromptInputActions className="pb-2 pr-2">
+                                <Button
+                                    size="icon"
+                                    className={cn(
+                                        "h-8 w-8 rounded-full transition-all",
+                                        input.trim() ? "opacity-100 scale-100" : "opacity-0 scale-90"
+                                    )}
+                                    onClick={handleSubmit}
+                                    disabled={!input.trim()}
+                                >
+                                    <ArrowUp className="w-4 h-4" />
+                                </Button>
+                            </PromptInputActions>
+                        </PromptInput>
+                    </div>
+                )}
 
                 {/* RESIZE HANDLE */}
                 <div
@@ -645,7 +677,7 @@ export default function CanvasChatBoard() {
 
         // Smarter placement
         const children = nodes.filter(n => n.parents.includes(parentId));
-        let targetX = parent.position.x + parent.width + 150
+        const targetX = parent.position.x + parent.width + 150
         let targetY = parent.position.y
 
         if (children.length > 0) {
@@ -653,7 +685,7 @@ export default function CanvasChatBoard() {
             targetY = lastChild.position.y + lastChild.height + 50;
         }
 
-        const initialMessages: any[] = []
+        const initialMessages: { id: string; role: "user"; content: string }[] = []
         if (contextText) {
             initialMessages.push({
                 id: generateId(),
@@ -666,7 +698,7 @@ export default function CanvasChatBoard() {
             id: newNodeId,
             variant: "standard",
             parents: [parentId],
-            messages: initialMessages as any, // Type hack for speed
+            messages: initialMessages,
             responses: [],
             position: { x: targetX, y: targetY },
             width: NODE_WIDTH_STANDARD,
@@ -714,6 +746,28 @@ export default function CanvasChatBoard() {
         setSelectedNodeId(parentId)
     }
 
+    /* LOGIC: BRANCH TO NOTE */
+    const branchToNote = (nodeId: string, content: string) => {
+        const id = generateId()
+        const node = nodes.find(n => n.id === nodeId)
+        if (!node) return
+        
+        const newNode: ChatNode = {
+            id,
+            variant: "note",
+            parents: [nodeId],
+            messages: [],
+            responses: [],
+            position: { x: node.position.x + node.width + 100, y: node.position.y },
+            width: 300,
+            height: 250,
+            activeModelIndex: 0,
+            noteText: content
+        }
+        setNodes(prev => [...prev, newNode])
+        setSelectedNodeId(id)
+    }
+
     /* LOGIC: DELETE */
     const deleteNode = (nodeId: string) => {
         setNodes(prev => prev.filter(n => n.id !== nodeId).map(n => ({
@@ -721,6 +775,72 @@ export default function CanvasChatBoard() {
             parents: n.parents.filter(pid => pid !== nodeId)
         })))
         if (selectedNodeId === nodeId) setSelectedNodeId(null)
+    }
+
+    /* LOGIC: TIDY CANVAS */
+    const tidyCanvas = () => {
+        // Simple tree layout algorithm
+        const HORIZONTAL_GAP = 150
+        const VERTICAL_GAP = 50
+
+        const levels: Record<string, number> = {}
+
+        // 1. Determine Levels via BFS/DFS
+        const calculateLevel = (nodeId: string, level: number) => {
+            levels[nodeId] = Math.max(levels[nodeId] || 0, level)
+            const children = nodes.filter(n => n.parents.includes(nodeId))
+            children.forEach(c => calculateLevel(c.id, level + 1))
+        }
+
+        const roots = nodes.filter(n => n.parents.length === 0)
+        roots.forEach(r => calculateLevel(r.id, 0))
+
+        // 2. Position by level
+        const newNodes = [...nodes].sort((a, b) => (levels[a.id] || 0) - (levels[b.id] || 0))
+
+        // We want to center the tree
+        const nodesByLevel: Record<number, ChatNode[]> = {}
+        newNodes.forEach(n => {
+            const l = levels[n.id] || 0
+            if (!nodesByLevel[l]) nodesByLevel[l] = []
+            nodesByLevel[l].push(n)
+        })
+
+        const updatedNodes = nodes.map(n => {
+            const l = levels[n.id] || 0
+            const nodesInLevel = nodesByLevel[l]
+            const indexInLevel = nodesInLevel.findIndex(ln => ln.id === n.id)
+            
+            // Calculate X based on level
+            const x = 100 + l * (NODE_WIDTH_STANDARD + HORIZONTAL_GAP)
+            
+            // Calculate Y based on index in level, centered around parent if possible
+            // For now, simple stacked positioning
+            const y = 100 + (indexInLevel * (DEFAULT_NODE_HEIGHT + VERTICAL_GAP))
+
+            return { ...n, position: { x, y } }
+        })
+
+        setNodes(updatedNodes)
+    }
+
+    /* LOGIC: ADD NOTE */
+    const addNote = () => {
+        const id = generateId()
+        const newNode: ChatNode = {
+            id,
+            variant: "note",
+            parents: [],
+            messages: [],
+            responses: [],
+            position: { x: -camera.x / camera.scale + 100, y: -camera.y / camera.scale + 100 },
+            width: 300,
+            height: 250,
+            activeModelIndex: 0,
+            noteText: ""
+        }
+        setNodes(prev => [...prev, newNode])
+        setSelectedNodeId(id)
     }
 
     /* EVENTS */
@@ -830,6 +950,13 @@ export default function CanvasChatBoard() {
                     <LocateFixed className="w-4 h-4" />
                 </Button>
                 <div className="w-px h-4 bg-border mx-1" />
+                <Button variant="ghost" size="icon" onClick={tidyCanvas} title="Tidy Canvas">
+                    <LayoutTemplate className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={addNote} title="Add Note">
+                    <StickyNote className="w-4 h-4" />
+                </Button>
+                <div className="w-px h-4 bg-border mx-1" />
                 <ModeToggle />
                 <div className="px-3 text-xs font-mono text-muted-foreground select-none">
                     {Math.round(camera.scale * 100)}%
@@ -906,6 +1033,10 @@ export default function CanvasChatBoard() {
                                     setNodes(prev => prev.map(n => n.id === id ? { ...n, height: h } : n))
                                 }}
                                 onMerge={mergeNode}
+                                onUpdateNode={(id, updates) => {
+                                    setNodes(prev => prev.map(n => n.id === id ? { ...n, ...updates } : n))
+                                }}
+                                onBranchToNote={branchToNote}
                             />
                         ))}
                     </div>

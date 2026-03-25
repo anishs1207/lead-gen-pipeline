@@ -1,18 +1,19 @@
 import { useState, useEffect } from "react";
 
+const THINKING_MESSAGES = [
+    "Analyzing your request...",
+    "Processing spreadsheet data...",
+    "Generating intelligent insights...",
+    "Updating your lead grid...",
+    "Finalizing suggestions..."
+];
+
 export default function ThinkingState() {
     const [messageIndex, setMessageIndex] = useState(0);
-    const messages = [
-        "Analyzing your request...",
-        "Processing spreadsheet data...",
-        "Generating intelligent insights...",
-        "Updating your lead grid...",
-        "Finalizing suggestions..."
-    ];
 
     useEffect(() => {
         const interval = setInterval(() => {
-            setMessageIndex((prev) => (prev + 1) % messages.length);
+            setMessageIndex((prev) => (prev + 1) % THINKING_MESSAGES.length);
         }, 1800);
         return () => clearInterval(interval);
     }, []);
@@ -25,7 +26,7 @@ export default function ThinkingState() {
                 <span className="h-2 w-2 animate-bounce rounded-full bg-primary/60"></span>
             </div>
             <span className="text-xs font-medium text-primary/80 tracking-tight italic">
-                {messages[messageIndex]}
+                {THINKING_MESSAGES[messageIndex]}
             </span>
         </div>
     );

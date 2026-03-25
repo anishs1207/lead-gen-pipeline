@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
   for (const { strategy, query: variantQuery } of variants) {
     try {
       const res = await (firecrawl as unknown as {
-        search: (q: string, o: Record<string, unknown>) => Promise<FirecrawlSearchResult>;
+        search: (_: string, __: Record<string, unknown>) => Promise<FirecrawlSearchResult>;
       }).search(variantQuery, {
         limit,
         lang,

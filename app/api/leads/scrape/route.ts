@@ -46,7 +46,7 @@ async function searchAndScrape(query: string): Promise<ScrapedPage[]> {
     
     // Use Firecrawl's search endpoint which is more reliable than scraping Google
     const searchRes = await (firecrawl as unknown as { 
-      search: (query: string, options: { limit: number; scrapeOptions: { formats: string[] } }) => Promise<{ 
+      search: (_: string, __: { limit: number; scrapeOptions: { formats: string[] } }) => Promise<{ 
         success: boolean; 
         data: Array<{ url: string; markdown: string; title: string; description: string }> 
       }> 

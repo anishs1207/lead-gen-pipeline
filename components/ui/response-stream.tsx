@@ -13,7 +13,7 @@ export type UseTextStreamOptions = {
   fadeDuration?: number
   segmentDelay?: number
   characterChunkSize?: number
-  onError?: (error: unknown) => void
+  onError?: (_error: unknown) => void
 }
 
 export type UseTextStreamResult = {
@@ -135,7 +135,7 @@ function useTextStream({
         onError?.(error)
       }
     }
-  }, [])
+  }, [onError])
 
   const markComplete = useCallback(() => {
     if (!completedRef.current) {

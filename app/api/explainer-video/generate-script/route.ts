@@ -53,23 +53,22 @@ Write the script now:`;
     ];
 
     let scriptText = "";
-    let lastError: any = null;
+    let lastError: Error | null = null;
 
     for (const modelId of MODELS_TO_TRY) {
       try {
         console.log(`[explainer-video] Attempting model: ${modelId}`);
         const { text } = await generateText({
-          model: google(modelId, { apiKey }),
+          model: google(modelId as string),
           prompt: promptText,
-          maxTokens: 512,
         });
         scriptText = text.trim();
         console.log(`[explainer-video] ✅ Success with ${modelId}`);
         break;
-      } catch (err: any) {
-        const msg = err.message || String(err);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
         console.warn(`[explainer-video] ⚠️ ${modelId} failed: ${msg.slice(0, 100)}`);
-        lastError = err;
+        lastError = err instanceof Error ? err : new Error(msg);
         // Continue ONLY if it's a quota or model-not-found error
         const isQuotaErr = msg.includes("429") || msg.toLowerCase().includes("quota");
         const isMissingErr = msg.includes("404") || msg.toLowerCase().includes("not found");

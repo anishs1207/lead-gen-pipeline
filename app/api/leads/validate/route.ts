@@ -21,7 +21,7 @@ import { Lead } from '@/lib/types';
 
 // ─── Validation Utilities ────────────────────────────────────────────────────
 
-const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 const PHONE_REGEX = /^\+?[\d\s\-().]{7,20}$/;
 
 // Known disposable/invalid email domains

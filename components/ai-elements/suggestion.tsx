@@ -27,7 +27,7 @@ export const Suggestions = ({
 
 export type SuggestionProps = Omit<ComponentProps<typeof Button>, "onClick"> & {
   suggestion: string;
-  onClick?: (suggestion: string) => void;
+  onClick?: (_suggestion: string) => void;
 };
 
 export const Suggestion = ({

@@ -29,7 +29,7 @@ export default function RunHistoryViewer({
 }: {
     runs: RunHistoryEntry[];
     onClose: () => void;
-    onDelete: (id: string) => void;
+    onDelete: (_id: string) => void;
 }) {
     const [selectedRun, setSelectedRun] = useState<RunHistoryEntry | null>(null);
 

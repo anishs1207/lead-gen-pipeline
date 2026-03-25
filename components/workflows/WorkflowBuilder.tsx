@@ -49,6 +49,7 @@ import {
     Upload,
     History,
     Flag,
+    Split
 } from "lucide-react";
 import CopyButton from "./CopyButton";
 
@@ -71,6 +72,8 @@ interface WorkflowNodeData {
     error: string;
     isStartNode: boolean;
     isEndNode: boolean;
+    isConditionNode?: boolean;
+    conditionQuery?: string;
     startInput: string;
     [key: string]: unknown;
 }
@@ -106,7 +109,7 @@ function resolveTemplatePath(obj: unknown, path: string): string {
             current = JSON.parse(current);
         } catch {
             // not JSON — return the raw string for {{input}}, empty for nested
-            //@ts-expect-error
+            //@ts-expect-error - input path might not exist on current
             return path === "input" ? current : "";
         }
     }
@@ -166,7 +169,9 @@ function WorkflowNode({ id, data, selected }: { id: string; data: WorkflowNodeDa
         ? <Zap className="w-4 h-4 text-emerald-400 shrink-0" />
         : data.isEndNode
             ? <Flag className="w-4 h-4 text-amber-400 shrink-0" />
-            : <Bot className="w-4 h-4 text-muted-foreground shrink-0" />;
+            : data.isConditionNode
+                ? <Split className="w-4 h-4 text-purple-400 shrink-0" />
+                : <Bot className="w-4 h-4 text-muted-foreground shrink-0" />;
 
     return (
         <div
@@ -181,9 +186,19 @@ function WorkflowNode({ id, data, selected }: { id: string; data: WorkflowNodeDa
                 <Handle type="target" position={Position.Left}
                     className="!w-3 !h-3 !bg-primary !border-2 !border-background" />
             )}
-            {!data.isEndNode && (
+            {!data.isEndNode && !data.isConditionNode && (
                 <Handle type="source" position={Position.Right}
                     className="!w-3 !h-3 !bg-primary !border-2 !border-background" />
+            )}
+            {data.isConditionNode && (
+                <>
+                    <Handle type="source" position={Position.Right} id="true"
+                        style={{ top: '30%' }}
+                        className="!w-3 !h-3 !bg-emerald-500 !border-2 !border-background" />
+                    <Handle type="source" position={Position.Right} id="false"
+                        style={{ top: '70%' }}
+                        className="!w-3 !h-3 !bg-red-500 !border-2 !border-background" />
+                </>
             )}
             {/* End nodes still get a target handle */}
             {data.isEndNode && (
@@ -230,6 +245,29 @@ function WorkflowNode({ id, data, selected }: { id: string; data: WorkflowNodeDa
                                 className="text-xs min-h-[60px] max-h-[120px] resize-none bg-muted/30 border-muted"
                                 rows={3}
                             />
+                        </div>
+                    )}
+
+                    {/* Condition Node: logic query */}
+                    {data.isConditionNode && (
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                                <Split className="w-3 h-3" /> Condition (True if...)
+                            </label>
+                            <p className="text-[9px] text-muted-foreground/70 -mt-0.5">
+                                Describe the condition, e.g. &quot;input contains &apos;urgent&apos;&quot;
+                            </p>
+                            <Textarea
+                                value={data.conditionQuery || ""}
+                                onChange={(e) => updateField("conditionQuery", e.target.value)}
+                                placeholder="Condition logic..."
+                                className="text-xs min-h-[50px] max-h-[80px] resize-none bg-purple-500/5 border-purple-500/20"
+                                rows={2}
+                            />
+                            <div className="flex justify-between text-[8px] font-bold uppercase tracking-tighter opacity-50 px-1">
+                                <span className="text-emerald-500">True (Top)</span>
+                                <span className="text-red-500">False (Bottom)</span>
+                            </div>
                         </div>
                     )}
 
@@ -354,7 +392,7 @@ export default function WorkflowBuilder() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // ── Nodes & Edges ──────────────────────────────────────────────
-    //@ts-expect-error
+    //@ts-expect-error - React Flow useNodesState type mismatch
     const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNodeData>([
         {
             id: "start-1",
@@ -412,7 +450,7 @@ export default function WorkflowBuilder() {
     );
 
     const addNode = useCallback(
-        (kind: "start" | "process" | "end") => {
+        (kind: "start" | "process" | "end" | "condition") => {
             const id = `node-${Date.now()}`;
             const viewport = reactFlowInstance.getViewport();
             const newNode: RFNode<WorkflowNodeData> = {
@@ -431,11 +469,12 @@ export default function WorkflowBuilder() {
                     error: "",
                     isStartNode: kind === "start",
                     isEndNode: kind === "end",
+                    isConditionNode: kind === "condition",
                     startInput: "",
                 },
             };
-            //@ts-expect-error
-            setNodes((nds) => [...nds, newNode]);
+            //@ts-expect-error - React Flow nodes state mismatch with custom data structure
+             setNodes((nds) => [...nds, newNode]);
         },
         [reactFlowInstance, setNodes]
     );
@@ -452,7 +491,7 @@ export default function WorkflowBuilder() {
         setNodes((nds) =>
             nds.map((n) => ({
                 ...n,
-                //@ts-expect-error
+                //@ts-expect-error - data property update status
                 data: { ...n.data, status: "idle" as NodeStatus, result: "", error: "" },
             }))
         );
@@ -463,10 +502,10 @@ export default function WorkflowBuilder() {
         (name?: string): SavedWorkflow => ({
             id: currentWorkflowId || `wf-${Date.now()}`,
             name: name || currentWorkflowName,
-            //@ts-expect-error
+            //@ts-expect-error - nodes map type mismatch
             nodes: nodes.map((n) => ({
                 ...n,
-                //@ts-expect-error
+                //@ts-expect-error - data property update
                 data: { ...n.data, status: "idle" as NodeStatus, result: "", error: "" },
             })),
             edges: [...edges],
@@ -495,7 +534,7 @@ export default function WorkflowBuilder() {
 
     const loadWorkflow = useCallback(
         (wf: SavedWorkflow) => {
-            //@ts-expect-error
+            //@ts-expect-error - wf nodes type mismatch
             setNodes(wf.nodes);
             setEdges(wf.edges);
             setCurrentWorkflowName(wf.name);
@@ -514,7 +553,7 @@ export default function WorkflowBuilder() {
     }, [currentWorkflowId]);
 
     const newWorkflow = useCallback(() => {
-        //@ts-expect-error
+        //@ts-expect-error - nodes initialization type mismatch
         setNodes([{
             id: `start-${Date.now()}`,
             type: "workflowNode",
@@ -563,7 +602,7 @@ export default function WorkflowBuilder() {
                             error: "",
                         },
                     }));
-                    //@ts-expect-error
+                    //@ts-expect-error - fixedNodes type mismatch
                     setNodes(fixedNodes);
                     setEdges(wf.edges);
                     setCurrentWorkflowName(wf.name || "Imported Workflow");
@@ -606,15 +645,15 @@ export default function WorkflowBuilder() {
         const startTime = Date.now();
 
         // Build adjacency map
-        const childMap: Record<string, string[]> = {};
+        const childMap: Record<string, { target: string; sourceHandle?: string | null }[]> = {};
         edges.forEach((e) => {
             if (!childMap[e.source]) childMap[e.source] = [];
-            childMap[e.source].push(e.target);
+            childMap[e.source].push({ target: e.target, sourceHandle: e.sourceHandle });
         });
 
         // Find start nodes
-        //@ts-expect-error
-        const startNodes = nodes.filter((n) => n.data.isStartNode);
+        //@ts-expect-error - nodes data property access
+        const startNodes = (nodes as RFNode<WorkflowNodeData>[]).filter((n) => n.data.isStartNode);
         if (startNodes.length === 0) {
             setIsRunning(false);
             return;
@@ -627,20 +666,18 @@ export default function WorkflowBuilder() {
             if (visited.has(nodeId)) return;
             visited.add(nodeId);
 
-            const node = nodes.find((n) => n.id === nodeId);
+            const node = nodes.find((n) => n.id === nodeId) as RFNode<WorkflowNodeData> | undefined;
             if (!node) return;
 
             // Set running
             setNodes((nds) =>
                 nds.map((n) =>
-                    //@ts-expect-error
+                    //@ts-expect-error - status property mismatch
                     n.id === nodeId ? { ...n, data: { ...n.data, status: "running" as NodeStatus } } : n
                 )
             );
 
             try {
-                // Build prompt using the template engine (supports nested paths)
-                //@ts-expect-error
                 const userPrompt = renderTemplate(node.data.userPrompt, inputData);
 
                 const res = await fetch("/api/canvas-chat", {
@@ -651,7 +688,6 @@ export default function WorkflowBuilder() {
                         variant: "standard",
                         models: ["gemini-2.0"],
                         conversationHistory: [
-                            //@ts-expect-error
                             { role: "system", content: node.data.systemPrompt },
                         ],
                     }),
@@ -661,35 +697,56 @@ export default function WorkflowBuilder() {
 
                 if (data.success && data.responses?.[0]) {
                     const result = data.responses[0].content;
-                    //@ts-expect-error
                     nodeResultsForHistory[nodeId] = { label: node.data.label, status: "success", result, error: "" };
 
                     setNodes((nds) =>
                         nds.map((n) =>
                             n.id === nodeId
-                                //@ts-expect-error
-                                ? { ...n, data: { ...n.data, status: "success" as NodeStatus, result } }
+                                ? { ...n, data: { ...(n.data as WorkflowNodeData), status: "success" as NodeStatus, result } }
                                 : n
                         )
                     );
 
-                    // Process children sequentially
-                    const children = childMap[nodeId] || [];
-                    for (const childId of children) {
-                        await processNode(childId, result);
+                    // Process children sequentially with condition handling
+                    const allChildren = childMap[nodeId] || [];
+                    
+                    if (node.data.isConditionNode) {
+                        // AI-powered condition checking
+                        const checkRes = await fetch("/api/canvas-chat", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                message: `Evaluate this condition based on the input. Return ONLY the word "TRUE" or "FALSE".\n\nInput: ${result}\nCondition: ${node.data.conditionQuery}`,
+                                variant: "standard",
+                                models: ["gemini-2.0"],
+                                conversationHistory: [{ role: "system", content: "You are a logic evaluator. Output only 'TRUE' or 'FALSE'." }],
+                            }),
+                        });
+                        const checkData = await checkRes.json();
+                        const isTrue = checkData.responses?.[0]?.content?.toUpperCase().includes("TRUE");
+                        
+                        const targetHandle = isTrue ? "true" : "false";
+                        const filteredChildren = allChildren.filter(c => c.sourceHandle === targetHandle);
+                        
+                        for (const child of filteredChildren) {
+                            await processNode(child.target, result);
+                        }
+                    } else {
+                        for (const child of allChildren) {
+                            await processNode(child.target, result);
+                        }
                     }
                 } else {
                     throw new Error(data.error || "API call failed");
                 }
             } catch (err) {
                 nodeResultsForHistory[nodeId] = {
-                    //@ts-expect-error
                     label: node.data.label, status: "error", result: "", error: String(err),
                 };
                 setNodes((nds) =>
                     nds.map((n) =>
                         n.id === nodeId
-                            //@ts-expect-error
+                            //@ts-expect-error - status error update mismatch
                             ? { ...n, data: { ...n.data, status: "error" as NodeStatus, error: String(err) } }
                             : n
                     )
@@ -698,7 +755,6 @@ export default function WorkflowBuilder() {
         };
 
         // Start from all start nodes in parallel
-        //@ts-expect-error
         await Promise.all(startNodes.map((sn) => processNode(sn.id, sn.data.startInput)));
 
         // Save run to history
@@ -775,6 +831,10 @@ export default function WorkflowBuilder() {
                             <Button variant="outline" size="sm" className="w-full justify-start gap-2 text-xs h-8"
                                 onClick={() => addNode("end")}>
                                 <Flag className="w-3.5 h-3.5 text-amber-400" /> Output Node
+                            </Button>
+                            <Button variant="outline" size="sm" className="w-full justify-start gap-2 text-xs h-8"
+                                onClick={() => addNode("condition")}>
+                                <Split className="w-3.5 h-3.5 text-purple-400" /> Condition Node
                             </Button>
                         </div>
 
@@ -880,10 +940,10 @@ export default function WorkflowBuilder() {
                 </Button>
 
                 <ReactFlow
-                    //@ts-expect-error
+                    //@ts-expect-error - nodes state type mismatch with RFNode
                     nodes={nodes}
                     edges={edges}
-                    //@ts-expect-error
+                    //@ts-expect-error - onNodesChange type mismatch
                     onNodesChange={onNodesChange}
                     onEdgesChange={onEdgesChange}
                     onConnect={onConnect}

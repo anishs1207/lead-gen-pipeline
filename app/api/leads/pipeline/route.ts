@@ -103,7 +103,7 @@ async function stageDiscover(
     try {
       // Firecrawl /search returns scraped content for the top results
       const res = await (firecrawl as unknown as {
-        search: (q: string, opts: Record<string, unknown>) => Promise<{ success: boolean; data?: Array<{ url?: string }> }>;
+        search: (_: string, __: Record<string, unknown>) => Promise<{ success: boolean; data?: Array<{ url?: string }> }>;
       }).search(variant, {
         limit,
         lang: opts.lang || 'en',
@@ -155,7 +155,7 @@ async function stageCrawl(
       if (!opts.skipMap && !isLinkedIn) {
         try {
           const mapRes = await (firecrawl as unknown as {
-            mapUrl: (url: string, opts: Record<string, unknown>) => Promise<{ success: boolean; links?: string[] }>;
+            mapUrl: (_: string, __: Record<string, unknown>) => Promise<{ success: boolean; links?: string[] }>;
           }).mapUrl(rootUrl, { limit: 30 });
 
           if (mapRes.success && mapRes.links) {

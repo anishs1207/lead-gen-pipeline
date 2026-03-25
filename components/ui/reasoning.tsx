@@ -13,7 +13,7 @@ import { Markdown } from "./markdown"
 
 type ReasoningContextType = {
   isOpen: boolean
-  onOpenChange: (open: boolean) => void
+  onOpenChange: (_open: boolean) => void
 }
 
 const ReasoningContext = createContext<ReasoningContextType | undefined>(
@@ -34,7 +34,7 @@ export type ReasoningProps = {
   children: React.ReactNode
   className?: string
   open?: boolean
-  onOpenChange?: (open: boolean) => void
+  onOpenChange?: (_open: boolean) => void
   isStreaming?: boolean
 }
 function Reasoning({
@@ -59,13 +59,17 @@ function Reasoning({
 
   useEffect(() => {
     if (isStreaming && !wasAutoOpened) {
-      if (!isControlled) setInternalOpen(true)
-      setWasAutoOpened(true)
+      Promise.resolve().then(() => {
+        if (!isControlled) setInternalOpen(true)
+        setWasAutoOpened(true)
+      })
     }
 
     if (!isStreaming && wasAutoOpened) {
-      if (!isControlled) setInternalOpen(false)
-      setWasAutoOpened(false)
+      Promise.resolve().then(() => {
+        if (!isControlled) setInternalOpen(false)
+        setWasAutoOpened(false)
+      })
     }
   }, [isStreaming, wasAutoOpened, isControlled])
 
@@ -134,15 +138,15 @@ function ReasoningContent({
     if (!contentRef.current || !innerRef.current) return
 
     const observer = new ResizeObserver(() => {
-      if (contentRef.current && innerRef.current && isOpen) {
-        contentRef.current.style.maxHeight = `${innerRef.current.scrollHeight}px`
+      if (contentRef.current && innerRef.current) {
+        contentRef.current.style.maxHeight = isOpen ? `${innerRef.current.scrollHeight}px` : "0px"
       }
     })
 
     observer.observe(innerRef.current)
 
-    if (isOpen) {
-      contentRef.current.style.maxHeight = `${innerRef.current.scrollHeight}px`
+    if (contentRef.current && innerRef.current) {
+      contentRef.current.style.maxHeight = isOpen ? `${innerRef.current.scrollHeight}px` : "0px"
     }
 
     return () => observer.disconnect()
@@ -161,11 +165,10 @@ function ReasoningContent({
         "overflow-hidden transition-[max-height] duration-150 ease-out",
         className
       )}
-      style={{
-        maxHeight: isOpen ? contentRef.current?.scrollHeight : "0px",
-      }}
+      style={{}}
       {...props}
     >
+      {/* maxHeight set via effect */}
       <div
         ref={innerRef}
         className={cn(

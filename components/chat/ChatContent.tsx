@@ -112,7 +112,7 @@ export default function ChatContent() {
     // Derive suggestions: from last assistant message's data-suggestions part, or defaults
     const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
     const suggestionsPart = lastAssistant?.parts?.find(
-        (p: any) => p.type === 'data-suggestions'
+        (p) => p.type === 'data-suggestions'
     ) as { type: string; data: { suggestions: string[] } } | undefined;
 
     const activeSuggestions =
@@ -140,15 +140,15 @@ export default function ChatContent() {
                             // Pull typed parts from message.parts.
                             // SDK deduplicates by id+type, so each step appears once and is updated in-place.
                             const baseReasoningSteps = message.parts
-                                .filter((p: any) => p.type === 'data-reasoning-step')
-                                .map((p: any) => p.data as {
+                                .filter((p) => p.type === 'data-reasoning-step')
+                                .map((p) => (p as { data: unknown }).data as {
                                     index: number;
                                     icon: string;
                                     label: string;
                                     done: boolean;
                                     subtext?: string;
                                 })
-                                .sort((a: any, b: any) => a.index - b.index);
+                                .sort((a, b) => (a as { index: number }).index - (b as { index: number }).index);
 
                             // Add dummy steps for demonstration if needed
                             const reasoningSteps = baseReasoningSteps.length > 0 ? baseReasoningSteps : (isAssistant ? [
@@ -160,17 +160,16 @@ export default function ChatContent() {
                                 { index: 5, icon: 'rank', label: 'Generating outreach recommendations...', done: true, subtext: 'Prioritized top 5 leads based on fit score' }
                             ] : []);
 
-                            const toolApprovalPart = message.parts.find((p: any) => p.type === 'tool-approval') as any;
                             const userChoice = confirmationResponses[message.id];
                             const isPendingConfirmation = isAssistant && isLastMessage && !userChoice && !isLoading;
 
                             const sourceParts = message.parts.filter(
-                                (p: any) => p.type === 'source-url'
-                            ) as Array<{ type: string; sourceId: string; url: string; title?: string }>;
+                                (p) => p.type === 'source-url'
+                            ) as unknown as Array<{ type: string; sourceId: string; url: string; title?: string }>;
 
                             const textContent = message.parts
-                                .filter((p: any) => p.type === 'text')
-                                .map((p: any) => p.text)
+                                .filter((p) => p.type === 'text')
+                                .map((p) => (p as { text: string }).text)
                                 .join('');
 
                             return (

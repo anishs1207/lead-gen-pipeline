@@ -19,7 +19,7 @@ import React, {
 type PromptInputContextType = {
   isLoading: boolean
   value: string
-  setValue: (value: string) => void
+  setValue: (_value: string) => void
   maxHeight: number | string
   onSubmit?: () => void
   disabled?: boolean
@@ -43,7 +43,7 @@ function usePromptInput() {
 export type PromptInputProps = {
   isLoading?: boolean
   value?: string
-  onValueChange?: (value: string) => void
+  onValueChange?: (_value: string) => void
   maxHeight?: number | string
   onSubmit?: () => void
   children: React.ReactNode

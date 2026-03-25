@@ -38,13 +38,14 @@ type PipelineStep = "idle" | "script" | "audio" | "subtitles" | "video" | "trans
 
 async function transcodeToMP4(
   webmUrl: string,
-  onProgress: (msg: string) => void
+  onProgress: (_msg: string) => void
 ): Promise<string> {
   onProgress("Loading FFmpeg engine (v0.11)…");
 
   try {
     // 1. Load basic FFmpeg script if not present
-    if (!(window as any).FFmpeg) {
+    //@ts-expect-error - FFmpeg is loaded via script tag
+    if (!window.FFmpeg) {
       await new Promise<void>((resolve, reject) => {
         const script = document.createElement("script");
         script.src = "https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js";
@@ -54,7 +55,8 @@ async function transcodeToMP4(
       });
     }
 
-    const { createFFmpeg, fetchFile } = (window as any).FFmpeg;
+    //@ts-expect-error - FFmpeg global from script tag
+    const { createFFmpeg, fetchFile } = window.FFmpeg;
     const ffmpeg = createFFmpeg({
       log: true,
       corePath: "https://unpkg.com/@ffmpeg/core@0.11.0/dist/ffmpeg-core.js",
@@ -67,7 +69,7 @@ async function transcodeToMP4(
 
     // 2. Monitor ffmpeg logs for progress
     ffmpeg.setProgress(({ ratio }: { ratio: number }) => {
-      onProgress(`MP4 Encoding: ${Math.round(ratio * 100)}% complete`);
+      onProgress(`MP4 Encoding: ${isNaN(ratio) ? 0 : Math.round(ratio * 100)}% complete`);
     });
 
     // 3. Process the file
@@ -124,107 +126,44 @@ async function fetchAudioBuffer(url: string, audioCtx: AudioContext): Promise<Au
 
 async function speakAndCapture(
   scriptText: string,
-  onProgress: (msg: string) => void
+  onProgress: (_msg: string) => void
 ): Promise<{ audioBlobUrl: string; durationSec: number }> {
-  return new Promise((resolve, reject) => {
-    onProgress("Initialising text-to-speech engine…");
+  onProgress("Requesting AI narration audio from server…");
 
-    // We use SpeechSynthesis for narration. We record the system default audio output
-    // using a hidden <audio> element trick: speak into an oscillator-based approach
-    // via SpeechSynthesis utterance + MediaRecorder on a silent AudioContext stream.
-    // Since SpeechSynthesis output cannot be directly captured in most browsers,
-    // we estimate timing, then reassemble subtitles from word-level timing.
+  try {
+    const response = await fetch("/api/explainer-video/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: scriptText }),
+    });
 
-    const utterance = new SpeechSynthesisUtterance(scriptText);
-    utterance.rate = 0.9; // Slightly slower for clarity
-    utterance.pitch = 1.0;
-    utterance.volume = 1.0;
-
-    // Choose a good English voice if available
-    const voices = window.speechSynthesis.getVoices();
-    const englishVoice = voices.find(
-      (v) => v.lang.startsWith("en") && (v.name.includes("Google") || v.name.includes("Natural"))
-    ) || voices.find((v) => v.lang.startsWith("en")) || voices[0];
-    if (englishVoice) utterance.voice = englishVoice;
-
-    // Step 1: Estimate word timing based on character count and speech rate
-    // Average speaking pace ~2.5 words/sec at rate 0.9
-    const wordsArray = scriptText.split(/\s+/).filter(Boolean);
-    const avgWordDurationSec = 0.4; // seconds per word at rate 0.9
-    const pauseBetweenSentencesSec = 0.3;
-
-    const subtitleWords: SubtitleWord[] = [];
-    let currentTime = 0.2; // small intro gap
-
-    for (const word of wordsArray) {
-      const cleanWord = word.replace(/[.,!?;:]/g, "");
-      // Longer words take a bit more time
-      const wordDuration = avgWordDurationSec + cleanWord.length * 0.015;
-      subtitleWords.push({
-        word: cleanWord,
-        startTime: currentTime,
-        endTime: currentTime + wordDuration,
-      });
-      currentTime += wordDuration;
-      // Add pause after sentence-ending punctuation
-      if (/[.!?]$/.test(word)) {
-        currentTime += pauseBetweenSentencesSec;
-      }
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || `TTS API failed with status ${response.status}`);
     }
 
-    const totalDuration = currentTime + 0.5;
+    const blob = await response.blob();
+    const audioBlobUrl = URL.createObjectURL(blob);
 
-    // Step 2: Use AudioContext to create a silent audio stream of the correct duration,
-    // then record it. The actual voice comes from SpeechSynthesis (system audio).
-    // We then produce a silent placeholder blob for timing, with the real video
-    // using a recorded MediaStream from the canvas + oscillator (see video composition).
+    // Determine actual duration via AudioContext
+    onProgress("Processing audio duration…");
+    const audioCtx = new AudioContext();
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    const durationSec = audioBuffer.duration;
+    audioCtx.close();
 
-    const recordingCtx = new AudioContext();
-    const dest = recordingCtx.createMediaStreamDestination();
+    onProgress(`Narration ready (${Math.round(durationSec)}s).`);
 
-    // Create a very-quiet oscillator (near-silent) to keep MediaRecorder alive
-    const oscillator = recordingCtx.createOscillator();
-    const gainNode = recordingCtx.createGain();
-    gainNode.gain.value = 0.0001; // Nearly silent
-    oscillator.connect(gainNode);
-    gainNode.connect(dest);
-    oscillator.start();
+    // Play preview for the user
+    const audio = new Audio(audioBlobUrl);
+    audio.play().catch(e => console.warn("Auto-play blocked:", e));
 
-    const recorder = new MediaRecorder(dest.stream, {
-      mimeType: MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : "audio/ogg",
-    });
-    const chunks: BlobPart[] = [];
-    recorder.ondataavailable = (e) => chunks.push(e.data);
-    recorder.onstop = () => {
-      oscillator.stop();
-      recordingCtx.close();
-      const blob = new Blob(chunks, { type: recorder.mimeType });
-      const audioBlobUrl = URL.createObjectURL(blob);
-      resolve({ audioBlobUrl, durationSec: totalDuration });
-    };
-
-    recorder.start();
-
-    // Speak the utterance
-    utterance.onend = () => {
-      setTimeout(() => recorder.stop(), 500);
-      onProgress("Narration complete. Processing audio…");
-    };
-    utterance.onerror = (e) => {
-      recorder.stop();
-      reject(new Error(`SpeechSynthesis error: ${e.error}`));
-    };
-
-    onProgress("Speaking narration…");
-    window.speechSynthesis.speak(utterance);
-
-    // Safety fallback: stop recording after estimated duration + 5s buffer
-    setTimeout(() => {
-      if (recorder.state === "recording") {
-        recorder.stop();
-      }
-    }, (totalDuration + 5) * 1000);
-  });
+    return { audioBlobUrl, durationSec };
+  } catch (err) {
+    console.error("[TTS Capture] Error:", err);
+    throw new Error(`Narration failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
 }
 
 // ─── Utility: Generate subtitle words using Whisper.js (browser) ────────────
@@ -241,14 +180,14 @@ declare global {
 
 async function generateWhisperSubtitles(
   audioBlobUrl: string,
-  onProgress: (msg: string) => void
+  onProgress: (_msg: string) => void
 ): Promise<SubtitleWord[]> {
   onProgress("Loading Whisper model via CDN (first load may take ~20s)…");
 
   try {
     // Step 1: Load @xenova/transformers dynamically from CDN
     // This avoids any npm install requirement — it runs 100% in the browser via WASM
-    let pipeline: ((...args: unknown[]) => Promise<unknown>) | undefined;
+    let pipeline: ((..._args: unknown[]) => Promise<unknown>) | undefined;
 
     if (typeof window !== "undefined" && window.__whisperPipeline) {
       // Reuse previously loaded pipeline
@@ -257,12 +196,12 @@ async function generateWhisperSubtitles(
     } else {
       onProgress("Fetching Whisper runtime from CDN…");
       // Dynamically load from esm.sh CDN — no npm required
-      const module = await import(
+      const whisperModule = await import(
         /* webpackIgnore: true */ "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js" as string
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ) as any;
       
-      const pipelineFn = module.pipeline || module.default?.pipeline;
+      const pipelineFn = whisperModule.pipeline || whisperModule.default?.pipeline;
       if (!pipelineFn) throw new Error("Could not load pipeline from CDN module");
 
       onProgress("Initialising Whisper-tiny model (downloading weights…)");
@@ -361,11 +300,13 @@ function buildSRTContent(subtitleWords: SubtitleWord[]): string {
 async function composeAndRecordVideo(
   backgroundClipPath: string,
   musicPath: string,
+  narrationBlobUrl: string, // Added narration source
   subtitleWords: SubtitleWord[],
   totalDurationSec: number,
-  onProgress: (msg: string) => void
+  onProgress: (_msg: string) => void
 ): Promise<string> {
-  return new Promise(async (resolve, reject) => {
+  return new Promise((resolve, reject) => {
+    (async () => {
     onProgress("Setting up video canvas…");
 
     // Canvas dimensions: portrait 9:16
@@ -401,15 +342,35 @@ async function composeAndRecordVideo(
     musicSource.buffer = musicBuffer;
     musicSource.loop = true;
 
-    // Lower music volume so it's a bed, not the focus
+    // Lower music volume significantly so voice-over is audible
     const musicGain = audioCtx.createGain();
-    musicGain.gain.value = 0.25;
+    musicGain.gain.value = 0.08; // Lowered from 0.25
 
     musicSource.connect(musicGain);
 
-    // Route music to a MediaStream destination so we can record it
+    // Route music to a MediaStream destination
     const audioDestination = audioCtx.createMediaStreamDestination();
     musicGain.connect(audioDestination);
+
+    // ── Load and mix narration audio ──
+    try {
+      if (narrationBlobUrl) {
+        const response = await fetch(narrationBlobUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        const narrationBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+        const narrationSource = audioCtx.createBufferSource();
+        narrationSource.buffer = narrationBuffer;
+        
+        const narrationGain = audioCtx.createGain();
+        narrationGain.gain.value = 1.0; // Voiceover should be full volume
+        
+        narrationSource.connect(narrationGain);
+        narrationGain.connect(audioDestination);
+        narrationSource.start();
+      }
+    } catch (err) {
+      console.warn("Could not mix narration audio into video:", err);
+    }
 
     // ── Combine canvas stream + audio stream for MediaRecorder ──
     const canvasStream = canvas.captureStream(30); // 30fps
@@ -550,6 +511,7 @@ async function composeAndRecordVideo(
     };
 
     requestAnimationFrame(renderFrame);
+    })();
   });
 }
 
@@ -667,7 +629,6 @@ export default function ExplainerVideoGenerator() {
   const [videoBlobUrl, setVideoBlobUrl] = useState<string>("");
   const [mp4BlobUrl, setMp4BlobUrl] = useState<string>("");
   const [srtContent, setSrtContent] = useState<string>("");
-  const [videoMimeType, setVideoMimeType] = useState("video/webm");
 
   const videoPreviewRef = useRef<HTMLVideoElement>(null);
 
@@ -768,18 +729,11 @@ export default function ExplainerVideoGenerator() {
       const videoUrl = await composeAndRecordVideo(
         clipInfo.path,
         musicInfo.path,
+        audioBlobUrlRef.current, // Pass the narration audio
         finalSubtitleWords,
         totalDurationRef.current,
         setStatusMessage
       );
-
-      // Detect MIME type (usually webm from MediaRecorder)
-      const detectedMime = [
-        "video/webm;codecs=vp9,opus",
-        "video/webm;codecs=vp8,opus",
-        "video/webm",
-      ].find((t) => MediaRecorder.isTypeSupported(t)) || "video/webm";
-      setVideoMimeType(detectedMime.split(";")[0]);
 
       setVideoBlobUrl(videoUrl);
       

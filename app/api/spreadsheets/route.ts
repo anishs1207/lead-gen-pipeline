@@ -139,7 +139,7 @@ export async function PATCH(request: NextRequest) {
     let result;
 
     switch (action) {
-      case 'addColumn':
+      case 'addColumn': {
         const newColumn: Column = {
           id: uuidv4(),
           key: data.key || `column_${Date.now()}`,
@@ -150,6 +150,7 @@ export async function PATCH(request: NextRequest) {
         };
         result = SpreadsheetStore.addColumn(spreadsheetId, newColumn);
         break;
+      }
 
       case 'removeColumn':
         if (!data.columnId) {
@@ -161,7 +162,7 @@ export async function PATCH(request: NextRequest) {
         result = SpreadsheetStore.removeColumn(spreadsheetId, data.columnId);
         break;
 
-      case 'addRow':
+      case 'addRow': {
         const newLead = {
           id: uuidv4(),
           name: data.name || '',
@@ -179,6 +180,7 @@ export async function PATCH(request: NextRequest) {
         };
         result = SpreadsheetStore.addLeads(spreadsheetId, [newLead]);
         break;
+      }
 
       case 'removeRow':
         if (!data.leadId) {

@@ -52,7 +52,10 @@ export default function SidebarRight({
     data,
     setData,
     ...props
-}: React.ComponentProps<typeof Sidebar> & { data?: any; setData?: any }) {
+}: React.ComponentProps<typeof Sidebar> & { 
+    data?: Array<Array<{ value: string | number }>>; 
+    setData?: (_: Array<Array<{ value: string | number }>>) => void 
+}) {
     const [prompt, setPrompt] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -91,7 +94,11 @@ export default function SidebarRight({
                 message: userText,
                 spreadsheetData: data,
             });
-            const result: any = response.data;
+            const result = response.data as { 
+                success: boolean; 
+                response: string; 
+                updatedData?: Array<Array<{ value: string | number }>> 
+            };
 
             if (result.success) {
                 if (result.updatedData && setData) setData(result.updatedData);
@@ -109,7 +116,7 @@ export default function SidebarRight({
             } else {
                 throw new Error("Failed to get a response");
             }
-        } catch (e) {
+        } catch {
             setChatMessages(prev =>
                 prev.map(msg =>
                     msg.isTyping
@@ -143,10 +150,22 @@ export default function SidebarRight({
             const response = await axios.post('/api/leads/scrape', {
                 query: searchQuery
             });
-            const result: any = response.data;
+            const result = response.data as {
+                success: boolean;
+                leads: Array<{
+                    name: string;
+                    status: string;
+                    role: string;
+                    score: number | string;
+                    company: string;
+                    email: string;
+                    linkedin?: string;
+                    website?: string;
+                }>;
+            };
 
             if (result.success && result.leads) {
-                const newRows = result.leads.map((l: any) => [
+                const newRows = result.leads.map((l) => [
                     { value: l.name },
                     { value: l.status },
                     { value: l.role },
@@ -168,7 +187,7 @@ export default function SidebarRight({
             } else {
                 throw new Error("Failed to parse scraped leads.");
             }
-        } catch (e) {
+        } catch {
             setChatMessages(prev => prev.map(msg =>
                 msg.isTyping ? {
                     id: Date.now() + 2,
@@ -197,7 +216,11 @@ export default function SidebarRight({
                 message: "Analyze the leads in my spreadsheet and detect 0-3 realistic buying intent signals for each one (e.g. recent funding, hiring, job change, website visit). Add a new column called 'Signals' containing your analysis.",
                 spreadsheetData: data,
             });
-            const result: any = response.data;
+            const result = response.data as {
+                success: boolean;
+                response: string;
+                updatedData?: Array<Array<{ value: string | number }>>;
+            };
 
             if (result.success) {
                 if (result.updatedData && setData) setData(result.updatedData);
@@ -205,7 +228,7 @@ export default function SidebarRight({
                     msg.isTyping ? { id: Date.now() + 2, role: "assistant", content: result.response } : msg
                 ));
             }
-        } catch (e) {
+        } catch {
             setChatMessages(prev => prev.map(msg =>
                 msg.isTyping ? { id: Date.now() + 2, role: "assistant", content: `Oops! Intent analysis failed. Please try again later.` } : msg
             ));
@@ -237,7 +260,7 @@ export default function SidebarRight({
                                     <div className="p-4 rounded-full bg-primary/10">
                                         <Sparkles className="size-8 text-primary" />
                                     </div>
-                                    <p className="text-sm font-medium">Hello! I'm your AI Lead assistant. How can I help you grow your pipeline today?</p>
+                                    <p className="text-sm font-medium">Hello! I&apos;m your AI Lead assistant. How can I help you grow your pipeline today?</p>
                                 </div>
                             )}
                             {chatMessages.map(message => {
@@ -255,7 +278,7 @@ export default function SidebarRight({
                                             "flex flex-col gap-2 max-w-[90%]",
                                             isAssistant ? "items-start" : "items-end"
                                         )}>
-                                            {/* @ts-ignore */}
+                                            {/* @ts-expect-error - MessageContent component prop mismatch */}
                                             <MessageContent
                                                 className={cn(
                                                     "rounded-2xl px-4 py-2.5 text-sm shadow-sm",

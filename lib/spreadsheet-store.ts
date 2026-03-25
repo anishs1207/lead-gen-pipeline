@@ -5,7 +5,7 @@ import { SpreadsheetInstance, Lead, Column, DEFAULT_COLUMNS } from './types';
 import { v4 as uuidv4 } from 'uuid';
 
 // In-memory storage
-let spreadsheets: Map<string, SpreadsheetInstance> = new Map();
+const spreadsheets: Map<string, SpreadsheetInstance> = new Map();
 
 // Initialize with a default spreadsheet
 const defaultSpreadsheet: SpreadsheetInstance = {
@@ -153,7 +153,7 @@ export const SpreadsheetStore = {
 
     return spreadsheet.leads.filter(lead => {
       for (const [key, value] of Object.entries(criteria)) {
-        const leadValue = (lead as Record<string, unknown>)[key];
+        const leadValue = (lead as unknown as Record<string, unknown>)[key];
         
         if (typeof value === 'object' && value !== null) {
           // Handle comparison operators
@@ -176,8 +176,8 @@ export const SpreadsheetStore = {
     if (!spreadsheet) return [];
 
     return [...spreadsheet.leads].sort((a, b) => {
-      const aVal = (a as Record<string, unknown>)[key];
-      const bVal = (b as Record<string, unknown>)[key];
+      const aVal = (a as unknown as Record<string, unknown>)[key];
+      const bVal = (b as unknown as Record<string, unknown>)[key];
       
       if (aVal === undefined) return order === 'asc' ? 1 : -1;
       if (bVal === undefined) return order === 'asc' ? -1 : 1;
