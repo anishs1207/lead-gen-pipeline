@@ -21,7 +21,7 @@ function createEmptyTable(rows = 1, columns = 7) {
 }
 
 export default function ChatApp() {
-    const [data, setData] = useState(createEmptyTable(20, 10));
+    const [data, setData] = useState<Array<Array<{ value: string | number }>>>(createEmptyTable(20, 10));
 
     return (
         <SidebarProvider>

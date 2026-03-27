@@ -500,8 +500,7 @@ export default function WorkflowBuilder() {
             nodes: JSON.parse(JSON.stringify(nodes)), 
             edges: JSON.parse(JSON.stringify(edges)) 
         }]);
-        //@ts-expect-error - nodes type mismatch
-        setNodes(prev.nodes);
+        setNodes(prev.nodes as any);
         setEdges(prev.edges);
         setHistory((h) => h.slice(0, -1));
     }, [history, nodes, edges, setNodes, setEdges]);
@@ -513,8 +512,7 @@ export default function WorkflowBuilder() {
             nodes: JSON.parse(JSON.stringify(nodes)), 
             edges: JSON.parse(JSON.stringify(edges)) 
         }]);
-        //@ts-expect-error - nodes type mismatch
-        setNodes(next.nodes);
+        setNodes(next.nodes as any);
         setEdges(next.edges);
         setRedoHistory((r) => r.slice(0, -1));
     }, [redoHistory, nodes, edges, setNodes, setEdges]);
@@ -527,23 +525,21 @@ export default function WorkflowBuilder() {
 
         const levels: Record<string, number> = {};
         const calculateLevel = (nodeId: string, level: number) => {
-            levels[nodeId] = Math.max(levels[nodeId] || 0, level);
+            levels[nodeId] = Math.max((levels[nodeId] as any) || 0, level);
             edges.filter(e => e.source === nodeId).forEach(e => calculateLevel(e.target, level + 1));
         };
 
-        //@ts-expect-error - nodes data property access
         const roots = nodes.filter(n => (n.data as WorkflowNodeData).isStartNode);
-        roots.forEach(r => calculateLevel(r.id, 0));
+        roots.forEach(r => calculateLevel(r.id as string, 0));
 
         const nodesByLevel: Record<number, RFNode<WorkflowNodeData>[]> = {};
         nodes.forEach(n => {
-            const l = levels[n.id] || 0;
+            const l = levels[n.id as string] || 0;
             if (!nodesByLevel[l]) nodesByLevel[l] = [];
-            nodesByLevel[l].push(n as RFNode<WorkflowNodeData>);
+            nodesByLevel[l].push(n as any);
         });
 
-        //@ts-expect-error - nodes mapping type mismatch
-        setNodes(nds => (nds as RFNode<WorkflowNodeData>[]).map(n => {
+        setNodes(nds => (nds as any[]).map(n => {
             const l = levels[n.id] || 0;
             const idx = nodesByLevel[l].findIndex(nl => nl.id === n.id);
             return {
@@ -964,7 +960,7 @@ export default function WorkflowBuilder() {
                         const newNodes = selectedNodes.map(n => ({
                             ...n,
                             id: `${n.id}-copy-${Date.now()}`,
-                            position: { x: (n as RFNode).position.x + 50, y: (n as RFNode).position.y + 50 },
+                            position: { x: (n as any).position.x + 50, y: (n as any).position.y + 50 },
                             selected: false
                         }));
                         //@ts-expect-error - nodes duplication type mismatch
