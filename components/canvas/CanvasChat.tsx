@@ -21,7 +21,16 @@ import {
     CheckCircle2,
     Split,
     LayoutTemplate,
-    StickyNote
+    StickyNote,
+    Undo2,
+    Redo2,
+    Search,
+    Type,
+    Copy,
+    Check,
+    Lock,
+    Unlock,
+    Download
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Markdown } from "@/components/ui/markdown"
@@ -189,6 +198,7 @@ interface ChatNodeCardProps {
     onMerge: (_nodeId: string) => void
     onUpdateNode: (_nodeId: string, _updates: Partial<ChatNode>) => void
     onBranchToNote: (_nodeId: string, _content: string) => void
+    searchQuery?: string
 }
 
 function ChatNodeCard({
@@ -204,11 +214,14 @@ function ChatNodeCard({
     onResize,
     onMerge,
     onUpdateNode,
-    onBranchToNote
+    onBranchToNote,
+    searchQuery = ""
 }: ChatNodeCardProps) {
     const [input, setInput] = useState("")
     const [selectionPos, setSelectionPos] = useState<{ x: number, y: number } | null>(null)
     const [selectedText, setSelectedText] = useState("")
+    const [isEditingNote, setIsEditingNote] = useState(true)
+    const [isCopied, setIsCopied] = useState(false)
     const scrollRef = useRef<HTMLDivElement>(null)
 
     // Auto-scroll logic
@@ -331,6 +344,15 @@ function ChatNodeCard({
         })
     }
 
+    const isMatch = useMemo(() => {
+        if (!searchQuery) return false
+        const query = searchQuery.toLowerCase()
+        const messageMatch = node.messages.some(m => m.content.toLowerCase().includes(query))
+        const responseMatch = node.responses.some(r => r.modelResponses.some(mr => mr.content.toLowerCase().includes(query)))
+        const noteMatch = node.noteText?.toLowerCase().includes(query)
+        return messageMatch || responseMatch || noteMatch
+    }, [node, searchQuery])
+
     return (
         <>
             <SelectionTooltip
@@ -344,10 +366,11 @@ function ChatNodeCard({
 
             <div
                 className={cn(
-                    "node-card absolute flex flex-col bg-card border rounded-xl overflow-hidden transition-shadow duration-200",
+                    "node-card absolute flex flex-col bg-card border rounded-xl overflow-hidden transition-all duration-300",
                     isSelected
-                        ? "shadow-2xl ring-2 ring-primary border-primary z-50"
-                        : "shadow-md hover:shadow-xl border-border z-10"
+                        ? "shadow-2xl ring-2 ring-primary border-primary z-50 scale-[1.02]"
+                        : "shadow-md hover:shadow-xl border-border z-10",
+                    isMatch && "ring-4 ring-amber-500 shadow-[0_0_20px_rgba(245,158,11,0.4)] z-50"
                 )}
                 style={{
                     left: node.position.x,
@@ -410,13 +433,53 @@ function ChatNodeCard({
 
                 {/* BODY (NOTE VARIANT) */}
                 {node.variant === "note" && (
-                    <div className="flex-1 p-4 bg-yellow-500/5 cursor-text" onMouseDown={e => e.stopPropagation()}>
-                        <Textarea
-                            value={node.noteText || ""}
-                            onChange={(e) => onUpdateNode(node.id, { noteText: e.target.value })}
-                            placeholder="Type a note..."
-                            className="w-full h-full bg-transparent border-none focus-visible:ring-0 resize-none text-sm font-medium"
-                        />
+                    <div className="flex-1 p-0 flex flex-col bg-amber-50/30 dark:bg-amber-900/5 cursor-default" onMouseDown={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/20">
+                            <div className="flex items-center gap-1.5">
+                                <Button
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className={cn("h-7 px-2 text-[10px] gap-1", isEditingNote && "bg-background shadow-sm")}
+                                    onClick={() => setIsEditingNote(true)}
+                                >
+                                    <Type size={10} /> Edit
+                                </Button>
+                                <Button
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className={cn("h-7 px-2 text-[10px] gap-1", !isEditingNote && "bg-background shadow-sm")}
+                                    onClick={() => setIsEditingNote(false)}
+                                >
+                                    <Layers size={10} /> Preview
+                                </Button>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                onClick={() => {
+                                    navigator.clipboard.writeText(node.noteText || "")
+                                    setIsCopied(true)
+                                    setTimeout(() => setIsCopied(false), 2000)
+                                }}
+                            >
+                                {isCopied ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                            </Button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                            {isEditingNote ? (
+                                <Textarea
+                                    value={node.noteText || ""}
+                                    onChange={(e) => onUpdateNode(node.id, { noteText: e.target.value })}
+                                    placeholder="Type a note (Markdown supported)..."
+                                    className="w-full h-full bg-transparent border-none focus-visible:ring-0 resize-none text-sm font-medium p-0"
+                                />
+                            ) : (
+                                <div className="prose prose-sm dark:prose-invert max-w-none">
+                                    <Markdown>{node.noteText || "_No content yet._"}</Markdown>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
@@ -522,8 +585,51 @@ export default function CanvasChatBoard() {
         },
     ])
 
+    // Undo/Redo/Search State
+    const [history, setHistory] = useState<{ nodes: ChatNode[]; camera: { x: number; y: number; scale: number } }[]>([])
+    const [redoHistory, setRedoHistory] = useState<{ nodes: ChatNode[]; camera: { x: number; y: number; scale: number } }[]>([])
+    const [searchQuery, setSearchQuery] = useState("")
+
+    // Persistence Layer: Load on Mount
+    useEffect(() => {
+        const savedNodes = localStorage.getItem("canvas-nodes")
+        const savedCamera = localStorage.getItem("canvas-camera")
+        if (savedNodes) setNodes(JSON.parse(savedNodes))
+        if (savedCamera) setCamera(JSON.parse(savedCamera))
+    }, [])
+
+    // Persistence Layer: Save on Change
+    useEffect(() => {
+        localStorage.setItem("canvas-nodes", JSON.stringify(nodes))
+        localStorage.setItem("canvas-camera", JSON.stringify(camera))
+    }, [nodes, camera])
+
+    const pushToHistory = useCallback(() => {
+        setHistory(prev => [...prev.slice(-19), { nodes: JSON.parse(JSON.stringify(nodes)), camera: { ...camera } }])
+        setRedoHistory([])
+    }, [nodes, camera])
+
+    const undo = useCallback(() => {
+        if (history.length === 0) return
+        const prev = history[history.length - 1]
+        setRedoHistory(r => [...r, { nodes: JSON.parse(JSON.stringify(nodes)), camera: { ...camera } }])
+        setNodes(prev.nodes)
+        setCamera(prev.camera)
+        setHistory(h => h.slice(0, -1))
+    }, [history, nodes, camera])
+
+    const redo = useCallback(() => {
+        if (redoHistory.length === 0) return
+        const next = redoHistory[redoHistory.length - 1]
+        setHistory(h => [...h, { nodes: JSON.parse(JSON.stringify(nodes)), camera: { ...camera } }])
+        setNodes(next.nodes)
+        setCamera(next.camera)
+        setRedoHistory(r => r.slice(0, -1))
+    }, [redoHistory, nodes, camera])
+
     /* LOGIC: SEND MESSAGE */
     const sendMessage = async (nodeId: string, text: string) => {
+        pushToHistory()
         // Detect Commands
         const node = nodes.find(n => n.id === nodeId)
         if (!node) return
@@ -670,6 +776,7 @@ export default function CanvasChatBoard() {
 
     /* LOGIC: BRANCHING */
     const branchThread = (parentId: string, contextText: string | null = null) => {
+        pushToHistory()
         const parent = nodes.find(n => n.id === parentId)
         if (!parent) return
 
@@ -712,6 +819,7 @@ export default function CanvasChatBoard() {
 
     /* LOGIC: MERGE */
     const mergeNode = (nodeId: string) => {
+        pushToHistory()
         const node = nodes.find(n => n.id === nodeId)
         if (!node || node.parents.length === 0) return
 
@@ -770,6 +878,7 @@ export default function CanvasChatBoard() {
 
     /* LOGIC: DELETE */
     const deleteNode = (nodeId: string) => {
+        pushToHistory()
         setNodes(prev => prev.filter(n => n.id !== nodeId).map(n => ({
             ...n,
             parents: n.parents.filter(pid => pid !== nodeId)
@@ -779,6 +888,7 @@ export default function CanvasChatBoard() {
 
     /* LOGIC: TIDY CANVAS */
     const tidyCanvas = () => {
+        pushToHistory()
         // Simple tree layout algorithm
         const HORIZONTAL_GAP = 150
         const VERTICAL_GAP = 50
@@ -826,6 +936,7 @@ export default function CanvasChatBoard() {
 
     /* LOGIC: ADD NOTE */
     const addNote = () => {
+        pushToHistory()
         const id = generateId()
         const newNode: ChatNode = {
             id,
@@ -845,6 +956,35 @@ export default function CanvasChatBoard() {
 
     /* EVENTS */
     // ... Copy existing event handlers from previous step with exact same logic, or slight tweaks
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Undo/Redo
+            if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+                if (e.shiftKey) redo()
+                else undo()
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === "y") {
+                redo()
+            }
+
+            // Shortcuts while node is selected
+            if (selectedNodeId) {
+                if (e.key === "Delete" || e.key === "Backspace") {
+                    // Check if not typing in an input
+                    const target = e.target as HTMLElement
+                    if (target.tagName !== "TEXTAREA" && target.tagName !== "INPUT") {
+                        deleteNode(selectedNodeId)
+                    }
+                }
+                if (e.key === "Escape") {
+                    setSelectedNodeId(null)
+                }
+            }
+        }
+        window.addEventListener("keydown", handleKeyDown)
+        return () => window.removeEventListener("keydown", handleKeyDown)
+    }, [undo, redo, selectedNodeId, deleteNode])
+
     const handleWheel = useCallback((e: WheelEvent) => {
         if (e.ctrlKey || e.metaKey) {
             e.preventDefault()
@@ -925,17 +1065,31 @@ export default function CanvasChatBoard() {
                 const pathData = `M ${startX} ${startY} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${endX} ${endY}`
 
                 return (
-                    <g key={`${parentId}-${node.id}`}>
-                        <path d={pathData} stroke="transparent" strokeWidth="16" fill="none" className="pointer-events-auto hover:stroke-foreground/10 cursor-pointer" />
+                    <g key={`${parentId}-${node.id}`} className="group/conn">
+                        <path d={pathData} stroke="transparent" strokeWidth="16" fill="none" className="pointer-events-auto hover:stroke-foreground/5 cursor-pointer" />
                         <path
                             d={pathData}
                             stroke={isSelected ? "currentColor" : "currentColor"}
                             strokeWidth={isSelected ? "3" : "2"}
-                            strokeOpacity={isSelected ? "0.8" : "0.3"}
+                            strokeOpacity={isSelected ? "0.9" : "0.2"}
                             fill="none"
                             markerEnd={isSelected ? "url(#arrowhead-selected)" : "url(#arrowhead)"}
-                            className={cn("transition-all duration-300", isSelected ? "text-primary" : "text-foreground")}
-                        />
+                            className={cn(
+                                "transition-all duration-300", 
+                                isSelected ? "text-primary stroke-[3]" : "text-foreground group-hover/conn:stroke-primary group-hover/conn:stroke-2 group-hover/conn:stroke-opacity-50"
+                            )}
+                            strokeDasharray={isSelected ? "5,5" : "0"}
+                        >
+                            {isSelected && (
+                                <animate
+                                    attributeName="stroke-dashoffset"
+                                    from="100"
+                                    to="0"
+                                    dur="3s"
+                                    repeatCount="indefinite"
+                                />
+                            )}
+                        </path>
                     </g>
                 )
             })
@@ -945,9 +1099,16 @@ export default function CanvasChatBoard() {
     return (
         <div className="flex flex-col h-screen overflow-hidden bg-muted/5 relative text-foreground font-sans">
             {/* UI LAYERS */}
-            <div className="absolute top-4 left-4 z-50 flex items-center gap-2 p-1 bg-background/80 backdrop-blur border rounded-lg shadow-sm">
+            <div className="absolute top-4 left-4 z-50 flex items-center gap-2 p-1 bg-background/80 backdrop-blur border rounded-lg shadow-md">
                 <Button variant="ghost" size="icon" onClick={() => setCamera({ x: 0, y: 0, scale: 1 })} title="Reset View">
                     <LocateFixed className="w-4 h-4" />
+                </Button>
+                <div className="w-px h-4 bg-border mx-1" />
+                <Button variant="ghost" size="icon" onClick={undo} disabled={history.length === 0} title="Undo (Ctrl+Z)">
+                    <Undo2 className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={redo} disabled={redoHistory.length === 0} title="Redo (Ctrl+Y)">
+                    <Redo2 className="w-4 h-4" />
                 </Button>
                 <div className="w-px h-4 bg-border mx-1" />
                 <Button variant="ghost" size="icon" onClick={tidyCanvas} title="Tidy Canvas">
@@ -955,6 +1116,37 @@ export default function CanvasChatBoard() {
                 </Button>
                 <Button variant="ghost" size="icon" onClick={addNote} title="Add Note">
                     <StickyNote className="w-4 h-4" />
+                </Button>
+                <div className="w-px h-4 bg-border mx-1" />
+                <div className="relative group transition-all duration-300 focus-within:w-64 w-40">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+                    <input
+                        type="text"
+                        placeholder="Search nodes..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-muted/40 border-none rounded-md pl-8 pr-2 py-1.5 text-xs focus-visible:ring-1 focus-within:bg-background ring-primary outline-none transition-all"
+                    />
+                </div>
+                <div className="w-px h-4 bg-border mx-1" />
+                <Button variant="ghost" size="icon" onClick={() => {
+                    const blob = new Blob([JSON.stringify({ nodes, camera }, null, 2)], { type: "application/json" })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement("a")
+                    a.href = url
+                    a.download = `canvas-export-${new Date().toISOString().split('T')[0]}.json`
+                    a.click()
+                }} title="Export Canvas">
+                    <Download className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => {
+                    if (confirm("Clear entire canvas? This cannot be undone.")) {
+                        pushToHistory()
+                        setNodes([])
+                        setCamera({ x: 0, y: 0, scale: 1 })
+                    }
+                }} className="text-destructive hover:bg-destructive/10" title="Clear Canvas">
+                    <X className="w-4 h-4" />
                 </Button>
                 <div className="w-px h-4 bg-border mx-1" />
                 <ModeToggle />
@@ -1037,6 +1229,7 @@ export default function CanvasChatBoard() {
                                     setNodes(prev => prev.map(n => n.id === id ? { ...n, ...updates } : n))
                                 }}
                                 onBranchToNote={branchToNote}
+                                searchQuery={searchQuery}
                             />
                         ))}
                     </div>

@@ -111,7 +111,7 @@ export default function LandingPage() {
       <footer className="border-t border-zinc-200 dark:border-zinc-800 py-12 mt-20 bg-zinc-50/30 dark:bg-zinc-950/30 backdrop-blur-sm">
         <div className="container mx-auto px-6 max-w-7xl flex justify-center items-center">
           <p className="text-zinc-500 text-center dark:text-zinc-400 font-medium tracking-tight">
-            &copy; 2026 LLM Interfaces. Built for the next era of AI.
+            &copy; 2026 LLM Interfaces.
           </p>
         </div>
       </footer>

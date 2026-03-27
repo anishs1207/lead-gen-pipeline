@@ -49,7 +49,18 @@ import {
     Upload,
     History,
     Flag,
-    Split
+    Split,
+    Undo2,
+    Redo2,
+    LayoutTemplate,
+    Search,
+    Type,
+    Copy,
+    Check,
+    Lock,
+    Unlock,
+    Download as DownloadIcon,
+    StickyNote
 } from "lucide-react";
 import CopyButton from "./CopyButton";
 
@@ -73,8 +84,11 @@ interface WorkflowNodeData {
     isStartNode: boolean;
     isEndNode: boolean;
     isConditionNode?: boolean;
+    isNoteNode?: boolean;
     conditionQuery?: string;
+    modelId?: string;
     startInput: string;
+    noteText?: string;
     [key: string]: unknown;
 }
 
@@ -91,6 +105,14 @@ const DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant. Process the input an
 const DEFAULT_USER_PROMPT = "{{input}}";
 const LS_WORKFLOWS = "workflows";
 const LS_RUNS = "workflow-runs";
+
+const AVAILABLE_MODELS = [
+    { id: "gemini-2.0", name: "Gemini 2.0" },
+    { id: "gpt-4o", name: "GPT-4o" },
+    { id: "claude-3.5", name: "Claude 3.5" },
+    { id: "deepseek", name: "DeepSeek" },
+    { id: "llama-3", name: "Llama 3" },
+];
 
 function resolveTemplatePath(obj: unknown, path: string): string {
     if (path === "input") {
@@ -171,7 +193,9 @@ function WorkflowNode({ id, data, selected }: { id: string; data: WorkflowNodeDa
             ? <Flag className="w-4 h-4 text-amber-400 shrink-0" />
             : data.isConditionNode
                 ? <Split className="w-4 h-4 text-purple-400 shrink-0" />
-                : <Bot className="w-4 h-4 text-muted-foreground shrink-0" />;
+                : data.isNoteNode
+                    ? <StickyNote className="w-4 h-4 text-yellow-400 shrink-0" />
+                    : <Bot className="w-4 h-4 text-muted-foreground shrink-0" />;
 
     return (
         <div
@@ -201,6 +225,12 @@ function WorkflowNode({ id, data, selected }: { id: string; data: WorkflowNodeDa
                 </>
             )}
             {/* End nodes still get a target handle */}
+            {data.isNoteNode && (
+                <>
+                    <Handle type="target" position={Position.Left} className="!opacity-0" />
+                    <Handle type="source" position={Position.Right} className="!opacity-0" />
+                </>
+            )}
             {data.isEndNode && (
                 <Handle type="target" position={Position.Left}
                     className="!w-3 !h-3 !bg-amber-400 !border-2 !border-background" />
@@ -271,36 +301,74 @@ function WorkflowNode({ id, data, selected }: { id: string; data: WorkflowNodeDa
                         </div>
                     )}
 
-                    {/* System Prompt */}
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                            <Settings2 className="w-3 h-3" /> System Prompt
-                        </label>
-                        <Textarea
-                            value={data.systemPrompt}
-                            onChange={(e) => updateField("systemPrompt", e.target.value)}
-                            placeholder="Define the AI's behavior..."
-                            className="text-xs min-h-[50px] max-h-[100px] resize-none bg-muted/30 border-muted"
-                            rows={2}
-                        />
-                    </div>
+                    {/* Model Selection (only for processing nodes) */}
+                    {!data.isStartNode && !data.isEndNode && !data.isConditionNode && !data.isNoteNode && (
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                                <Sparkles className="w-3 h-3" /> AI Model
+                            </label>
+                            <select
+                                value={data.modelId || "gemini-2.0"}
+                                onChange={(e) => updateField("modelId", e.target.value)}
+                                className="w-full bg-muted/40 border-muted rounded-md px-2 py-1 text-xs outline-none focus:ring-1 ring-primary appearance-none cursor-pointer"
+                            >
+                                {AVAILABLE_MODELS.map(m => (
+                                    <option key={m.id} value={m.id} className="bg-card text-foreground">{m.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
 
-                    {/* User Prompt Template */}
-                    <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                            <FileText className="w-3 h-3" /> Prompt Template
-                        </label>
-                        <p className="text-[9px] text-muted-foreground/70 -mt-0.5">
-                            {"Use {{input}} for full prev data, or {{input.key}} for nested JSON fields"}
-                        </p>
-                        <Textarea
-                            value={data.userPrompt}
-                            onChange={(e) => updateField("userPrompt", e.target.value)}
-                            placeholder="{{input}}"
-                            className="text-xs min-h-[40px] max-h-[80px] resize-none bg-muted/30 border-muted font-mono"
-                            rows={2}
-                        />
-                    </div>
+                    {/* System Prompt (hide for Start/End/Note) */}
+                    {!data.isStartNode && !data.isEndNode && !data.isNoteNode && (
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                                <Settings2 className="w-3 h-3" /> System Prompt
+                            </label>
+                            <Textarea
+                                value={data.systemPrompt}
+                                onChange={(e) => updateField("systemPrompt", e.target.value)}
+                                placeholder="Define the AI's behavior..."
+                                className="text-xs min-h-[50px] max-h-[100px] resize-none bg-muted/30 border-muted"
+                                rows={2}
+                            />
+                        </div>
+                    )}
+
+                    {/* User Prompt Template (hide for Start/End/Note) */}
+                    {!data.isStartNode && !data.isEndNode && !data.isNoteNode && (
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                                <FileText className="w-3 h-3" /> Prompt Template
+                            </label>
+                            <p className="text-[9px] text-muted-foreground/70 -mt-0.5">
+                                {"Use {{input}} for full prev data, or {{input.key}} for nested JSON fields"}
+                            </p>
+                            <Textarea
+                                value={data.userPrompt}
+                                onChange={(e) => updateField("userPrompt", e.target.value)}
+                                placeholder="{{input}}"
+                                className="text-xs min-h-[40px] max-h-[80px] resize-none bg-muted/30 border-muted font-mono"
+                                rows={2}
+                            />
+                        </div>
+                    )}
+
+                    {/* Note Content */}
+                    {data.isNoteNode && (
+                        <div className="space-y-1.5">
+                            <Textarea
+                                value={data.noteText || ""}
+                                onChange={(e) => updateField("noteText", e.target.value)}
+                                placeholder="Type a note (Markdown supported)..."
+                                className="text-xs min-h-[150px] resize-none bg-amber-500/5 border-amber-500/10 font-medium"
+                                rows={6}
+                            />
+                            <div className="prose prose-sm dark:prose-invert max-w-none text-[10px] opacity-70 mt-2 p-2 rounded bg-muted/20">
+                                <Markdown>{data.noteText || "_No content._"}</Markdown>
+                            </div>
+                        </div>
+                    )}
 
                     {/* Result Display */}
                     {(data.status === "success" || data.status === "error") && (
@@ -413,6 +481,82 @@ export default function WorkflowBuilder() {
     ]);
     const [edges, setEdges, onEdgesChange] = useEdgesState<RFEdge>([]);
 
+    // Undo/Redo State
+    const [history, setHistory] = useState<{ nodes: RFNode<WorkflowNodeData>[]; edges: RFEdge[] }[]>([]);
+    const [redoHistory, setRedoHistory] = useState<{ nodes: RFNode<WorkflowNodeData>[]; edges: RFEdge[] }[]>([]);
+
+    const pushToHistory = useCallback(() => {
+        setHistory((prev) => [...prev.slice(-19), { 
+            nodes: JSON.parse(JSON.stringify(nodes)), 
+            edges: JSON.parse(JSON.stringify(edges)) 
+        }]);
+        setRedoHistory([]);
+    }, [nodes, edges]);
+
+    const undo = useCallback(() => {
+        if (history.length === 0) return;
+        const prev = history[history.length - 1];
+        setRedoHistory((r) => [...r, { 
+            nodes: JSON.parse(JSON.stringify(nodes)), 
+            edges: JSON.parse(JSON.stringify(edges)) 
+        }]);
+        //@ts-expect-error - nodes type mismatch
+        setNodes(prev.nodes);
+        setEdges(prev.edges);
+        setHistory((h) => h.slice(0, -1));
+    }, [history, nodes, edges, setNodes, setEdges]);
+
+    const redo = useCallback(() => {
+        if (redoHistory.length === 0) return;
+        const next = redoHistory[redoHistory.length - 1];
+        setHistory((h) => [...h, { 
+            nodes: JSON.parse(JSON.stringify(nodes)), 
+            edges: JSON.parse(JSON.stringify(edges)) 
+        }]);
+        //@ts-expect-error - nodes type mismatch
+        setNodes(next.nodes);
+        setEdges(next.edges);
+        setRedoHistory((r) => r.slice(0, -1));
+    }, [redoHistory, nodes, edges, setNodes, setEdges]);
+
+    // Tidy Layout
+    const tidyWorkflow = useCallback(() => {
+        pushToHistory();
+        const HORIZONTAL_GAP = 400;
+        const VERTICAL_GAP = 100;
+
+        const levels: Record<string, number> = {};
+        const calculateLevel = (nodeId: string, level: number) => {
+            levels[nodeId] = Math.max(levels[nodeId] || 0, level);
+            edges.filter(e => e.source === nodeId).forEach(e => calculateLevel(e.target, level + 1));
+        };
+
+        //@ts-expect-error - nodes data property access
+        const roots = nodes.filter(n => (n.data as WorkflowNodeData).isStartNode);
+        roots.forEach(r => calculateLevel(r.id, 0));
+
+        const nodesByLevel: Record<number, RFNode<WorkflowNodeData>[]> = {};
+        nodes.forEach(n => {
+            const l = levels[n.id] || 0;
+            if (!nodesByLevel[l]) nodesByLevel[l] = [];
+            nodesByLevel[l].push(n as RFNode<WorkflowNodeData>);
+        });
+
+        //@ts-expect-error - nodes mapping type mismatch
+        setNodes(nds => (nds as RFNode<WorkflowNodeData>[]).map(n => {
+            const l = levels[n.id] || 0;
+            const idx = nodesByLevel[l].findIndex(nl => nl.id === n.id);
+            return {
+                ...n,
+                position: {
+                    x: 100 + l * HORIZONTAL_GAP,
+                    y: 100 + idx * (500 + VERTICAL_GAP)
+                }
+            };
+        }));
+        setTimeout(() => reactFlowInstance.fitView({ padding: 0.2 }), 100);
+    }, [nodes, edges, setNodes, reactFlowInstance, pushToHistory]);
+
     // ── Workflow management ────────────────────────────────────────
     const [savedWorkflows, setSavedWorkflows] = useState<SavedWorkflow[]>([]);
     const [currentWorkflowName, setCurrentWorkflowName] = useState("Untitled Workflow");
@@ -439,6 +583,7 @@ export default function WorkflowBuilder() {
     // ── Handlers ───────────────────────────────────────────────────
     const onConnect = useCallback(
         (params: Connection) => {
+            pushToHistory();
             setEdges((eds) =>
                 addEdge(
                     { ...params, type: "animated", markerEnd: { type: MarkerType.ArrowClosed, color: "var(--primary)" } },
@@ -446,11 +591,12 @@ export default function WorkflowBuilder() {
                 )
             );
         },
-        [setEdges]
+        [setEdges, pushToHistory]
     );
 
     const addNode = useCallback(
-        (kind: "start" | "process" | "end" | "condition") => {
+        (kind: "start" | "process" | "end" | "condition" | "note") => {
+            pushToHistory();
             const id = `node-${Date.now()}`;
             const viewport = reactFlowInstance.getViewport();
             const newNode: RFNode<WorkflowNodeData> = {
@@ -461,7 +607,7 @@ export default function WorkflowBuilder() {
                     y: (-viewport.y + 300) / viewport.zoom,
                 },
                 data: {
-                    label: kind === "start" ? "Start" : kind === "end" ? "Output" : "Step",
+                    label: kind === "start" ? "Start" : kind === "end" ? "Output" : kind === "note" ? "Note" : "Step",
                     systemPrompt: DEFAULT_SYSTEM_PROMPT,
                     userPrompt: DEFAULT_USER_PROMPT,
                     status: "idle",
@@ -470,24 +616,29 @@ export default function WorkflowBuilder() {
                     isStartNode: kind === "start",
                     isEndNode: kind === "end",
                     isConditionNode: kind === "condition",
+                    isNoteNode: kind === "note",
                     startInput: "",
+                    noteText: "",
+                    modelId: "gemini-2.0"
                 },
             };
             //@ts-expect-error - React Flow nodes state mismatch with custom data structure
              setNodes((nds) => [...nds, newNode]);
         },
-        [reactFlowInstance, setNodes]
+        [reactFlowInstance, setNodes, pushToHistory]
     );
 
     const deleteSelected = useCallback(() => {
+        pushToHistory();
         setNodes((nds) => nds.filter((n) => !n.selected));
         setEdges((eds) => {
             const selectedNodeIds = new Set(nodes.filter((n) => n.selected).map((n) => n.id));
             return eds.filter((e) => !e.selected && !selectedNodeIds.has(e.source) && !selectedNodeIds.has(e.target));
         });
-    }, [nodes, setNodes, setEdges]);
+    }, [nodes, setNodes, setEdges, pushToHistory]);
 
     const clearResults = useCallback(() => {
+        pushToHistory();
         setNodes((nds) =>
             nds.map((n) => ({
                 ...n,
@@ -495,7 +646,7 @@ export default function WorkflowBuilder() {
                 data: { ...n.data, status: "idle" as NodeStatus, result: "", error: "" },
             }))
         );
-    }, [setNodes]);
+    }, [setNodes, pushToHistory]);
 
     // ── Save / Load / Export / Import ──────────────────────────────
     const buildWorkflowObj = useCallback(
@@ -669,6 +820,15 @@ export default function WorkflowBuilder() {
             const node = nodes.find((n) => n.id === nodeId) as RFNode<WorkflowNodeData> | undefined;
             if (!node) return;
 
+            // Note nodes are just for documentation, they skip execution and pass through input
+            if (node.data.isNoteNode) {
+                const allChildren = childMap[nodeId] || [];
+                for (const child of allChildren) {
+                    await processNode(child.target, inputData);
+                }
+                return;
+            }
+
             // Set running
             setNodes((nds) =>
                 nds.map((n) =>
@@ -686,7 +846,7 @@ export default function WorkflowBuilder() {
                     body: JSON.stringify({
                         message: userPrompt,
                         variant: "standard",
-                        models: ["gemini-2.0"],
+                        models: [node.data.modelId || "gemini-2.0"],
                         conversationHistory: [
                             { role: "system", content: node.data.systemPrompt },
                         ],
@@ -776,13 +936,50 @@ export default function WorkflowBuilder() {
     // ── Keyboard shortcuts ─────────────────────────────────────────
     useEffect(() => {
         const handleKey = (e: KeyboardEvent) => {
+            // Shortcuts
+            if ((e.ctrlKey || e.metaKey)) {
+                if (e.key === "s") {
+                    e.preventDefault();
+                    saveWorkflow();
+                }
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    executeWorkflow();
+                }
+                if (e.key === "z") {
+                    e.preventDefault();
+                    if (e.shiftKey) redo();
+                    else undo();
+                }
+                if (e.key === "y") {
+                    e.preventDefault();
+                    redo();
+                }
+                if (e.key === "d") {
+                    e.preventDefault();
+                    // Duplicate selected nodes
+                    const selectedNodes = nodes.filter(n => n.selected);
+                    if (selectedNodes.length > 0) {
+                        pushToHistory();
+                        const newNodes = selectedNodes.map(n => ({
+                            ...n,
+                            id: `${n.id}-copy-${Date.now()}`,
+                            position: { x: (n as RFNode).position.x + 50, y: (n as RFNode).position.y + 50 },
+                            selected: false
+                        }));
+                        //@ts-expect-error - nodes duplication type mismatch
+                        setNodes(nds => [...(nds as RFNode<WorkflowNodeData>[]), ...newNodes as RFNode<WorkflowNodeData>[]]);
+                    }
+                }
+            }
+
             if ((e.key === "Delete" || e.key === "Backspace") && !["INPUT", "TEXTAREA"].includes((e.target as HTMLElement).tagName)) {
                 deleteSelected();
             }
         };
         window.addEventListener("keydown", handleKey);
         return () => window.removeEventListener("keydown", handleKey);
-    }, [deleteSelected]);
+    }, [deleteSelected, saveWorkflow, executeWorkflow, undo, redo, nodes, setNodes, pushToHistory]);
 
     return (
         <div className="flex h-screen overflow-hidden bg-background text-foreground">
@@ -836,6 +1033,10 @@ export default function WorkflowBuilder() {
                                 onClick={() => addNode("condition")}>
                                 <Split className="w-3.5 h-3.5 text-purple-400" /> Condition Node
                             </Button>
+                            <Button variant="outline" size="sm" className="w-full justify-start gap-2 text-xs h-8"
+                                onClick={() => addNode("note")}>
+                                <StickyNote className="w-3.5 h-3.5 text-yellow-400" /> Note Node
+                            </Button>
                         </div>
 
                         {/* Workflow Actions */}
@@ -848,14 +1049,26 @@ export default function WorkflowBuilder() {
                                 {isRunning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
                                 {isRunning ? "Running..." : "Run Workflow"}
                             </Button>
+                            <Button variant="secondary" size="sm" className="w-full justify-start gap-2 text-xs h-8"
+                                onClick={tidyWorkflow}>
+                                <LayoutTemplate className="w-3.5 h-3.5" /> Tidy Workflow
+                            </Button>
                             <div className="grid grid-cols-2 gap-1.5">
                                 <Button variant="outline" size="sm" className="justify-start gap-1.5 text-xs h-8"
                                     onClick={saveWorkflow}>
-                                    <Save className="w-3 h-3" /> Save
+                                    <Save className="w-3 h-3" /> Save (Ctrl+S)
                                 </Button>
                                 <Button variant="outline" size="sm" className="justify-start gap-1.5 text-xs h-8"
                                     onClick={newWorkflow}>
                                     <Plus className="w-3 h-3" /> New
+                                </Button>
+                                <Button variant="outline" size="sm" className="justify-start gap-1.5 text-xs h-8"
+                                    onClick={undo} disabled={history.length === 0}>
+                                    <Undo2 className="w-3 h-3" /> Undo
+                                </Button>
+                                <Button variant="outline" size="sm" className="justify-start gap-1.5 text-xs h-8"
+                                    onClick={redo} disabled={redoHistory.length === 0}>
+                                    <Redo2 className="w-3 h-3" /> Redo
                                 </Button>
                                 <Button variant="outline" size="sm" className="justify-start gap-1.5 text-xs h-8"
                                     onClick={downloadWorkflow}>
