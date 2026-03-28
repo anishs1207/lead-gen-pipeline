@@ -47,6 +47,12 @@ const projects = [
     description: "Brainrot Explainer Video Generator - It contains background gaming clips (gta5, minecraft, subway surfers, etc.), background music and scripts generated from the given user topic.",
     image: projectFour,
   },
+  {
+    id: "clean-room",
+    title: "Clean Room Liberation",
+    description: "Clean Room Liberation - It contains background gaming clips (gta5, minecraft, subway surfers, etc.), background music and scripts generated from the given user topic.",
+    image: projectFour,
+  },
 ]
 
 export default function LandingPage() {

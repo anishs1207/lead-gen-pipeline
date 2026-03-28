@@ -198,9 +198,9 @@ async function generateWhisperSubtitles(
       // Dynamically load from esm.sh CDN — no npm required
       const whisperModule = await import(
         /* webpackIgnore: true */ "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js" as string
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ) as any;
-      
+
       const pipelineFn = whisperModule.pipeline || whisperModule.default?.pipeline;
       if (!pipelineFn) throw new Error("Could not load pipeline from CDN module");
 
@@ -233,7 +233,7 @@ async function generateWhisperSubtitles(
     const result = await (pipeline as any)(float32Audio, {
       return_timestamps: "word",
       language: "en",
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as { chunks?: any[] };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -307,210 +307,210 @@ async function composeAndRecordVideo(
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     (async () => {
-    onProgress("Setting up video canvas…");
+      onProgress("Setting up video canvas…");
 
-    // Canvas dimensions: portrait 9:16
-    const CANVAS_WIDTH = 720;
-    const CANVAS_HEIGHT = 1280;
+      // Canvas dimensions: portrait 9:16
+      const CANVAS_WIDTH = 720;
+      const CANVAS_HEIGHT = 1280;
 
-    const canvas = document.createElement("canvas");
-    canvas.width = CANVAS_WIDTH;
-    canvas.height = CANVAS_HEIGHT;
-    const ctx = canvas.getContext("2d")!;
+      const canvas = document.createElement("canvas");
+      canvas.width = CANVAS_WIDTH;
+      canvas.height = CANVAS_HEIGHT;
+      const ctx = canvas.getContext("2d")!;
 
-    // ── Load background video element ──
-    const bgVideo = document.createElement("video");
-    bgVideo.src = backgroundClipPath;
-    bgVideo.muted = true;
-    bgVideo.loop = true;
-    bgVideo.crossOrigin = "anonymous";
-    bgVideo.playsInline = true;
+      // ── Load background video element ──
+      const bgVideo = document.createElement("video");
+      bgVideo.src = backgroundClipPath;
+      bgVideo.muted = true;
+      bgVideo.loop = true;
+      bgVideo.crossOrigin = "anonymous";
+      bgVideo.playsInline = true;
 
-    await new Promise<void>((res, rej) => {
-      bgVideo.oncanplay = () => res();
-      bgVideo.onerror = () => rej(new Error("Could not load background video: " + backgroundClipPath));
-      bgVideo.load();
-    });
+      await new Promise<void>((res, rej) => {
+        bgVideo.oncanplay = () => res();
+        bgVideo.onerror = () => rej(new Error("Could not load background video: " + backgroundClipPath));
+        bgVideo.load();
+      });
 
-    onProgress("Background clip loaded. Setting up audio…");
+      onProgress("Background clip loaded. Setting up audio…");
 
-    // ── Set up AudioContext for music mixing ──
-    const audioCtx = new AudioContext();
-    const musicBuffer = await fetchAudioBuffer(musicPath, audioCtx);
+      // ── Set up AudioContext for music mixing ──
+      const audioCtx = new AudioContext();
+      const musicBuffer = await fetchAudioBuffer(musicPath, audioCtx);
 
-    const musicSource = audioCtx.createBufferSource();
-    musicSource.buffer = musicBuffer;
-    musicSource.loop = true;
+      const musicSource = audioCtx.createBufferSource();
+      musicSource.buffer = musicBuffer;
+      musicSource.loop = true;
 
-    // Lower music volume significantly so voice-over is audible
-    const musicGain = audioCtx.createGain();
-    musicGain.gain.value = 0.08; // Lowered from 0.25
+      // Lower music volume significantly so voice-over is audible
+      const musicGain = audioCtx.createGain();
+      musicGain.gain.value = 0.08; // Lowered from 0.25
 
-    musicSource.connect(musicGain);
+      musicSource.connect(musicGain);
 
-    // Route music to a MediaStream destination
-    const audioDestination = audioCtx.createMediaStreamDestination();
-    musicGain.connect(audioDestination);
+      // Route music to a MediaStream destination
+      const audioDestination = audioCtx.createMediaStreamDestination();
+      musicGain.connect(audioDestination);
 
-    // ── Load and mix narration audio ──
-    try {
-      if (narrationBlobUrl) {
-        const response = await fetch(narrationBlobUrl);
-        const arrayBuffer = await response.arrayBuffer();
-        const narrationBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-        const narrationSource = audioCtx.createBufferSource();
-        narrationSource.buffer = narrationBuffer;
-        
-        const narrationGain = audioCtx.createGain();
-        narrationGain.gain.value = 1.0; // Voiceover should be full volume
-        
-        narrationSource.connect(narrationGain);
-        narrationGain.connect(audioDestination);
-        narrationSource.start();
-      }
-    } catch (err) {
-      console.warn("Could not mix narration audio into video:", err);
-    }
+      // ── Load and mix narration audio ──
+      try {
+        if (narrationBlobUrl) {
+          const response = await fetch(narrationBlobUrl);
+          const arrayBuffer = await response.arrayBuffer();
+          const narrationBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+          const narrationSource = audioCtx.createBufferSource();
+          narrationSource.buffer = narrationBuffer;
 
-    // ── Combine canvas stream + audio stream for MediaRecorder ──
-    const canvasStream = canvas.captureStream(30); // 30fps
-    const audioTracks = audioDestination.stream.getAudioTracks();
-    for (const track of audioTracks) {
-      canvasStream.addTrack(track);
-    }
+          const narrationGain = audioCtx.createGain();
+          narrationGain.gain.value = 1.0; // Voiceover should be full volume
 
-    // Pick a supported MIME type
-    const mimeType = [
-      "video/webm;codecs=vp9,opus",
-      "video/webm;codecs=vp8,opus",
-      "video/webm",
-    ].find((t) => MediaRecorder.isTypeSupported(t)) || "video/webm";
-
-    const recorder = new MediaRecorder(canvasStream, { mimeType, videoBitsPerSecond: 4_000_000 });
-    const chunks: BlobPart[] = [];
-    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-    recorder.onstop = () => {
-      audioCtx.close();
-      bgVideo.pause();
-      const blob = new Blob(chunks, { type: mimeType });
-      const videoUrl = URL.createObjectURL(blob);
-      resolve(videoUrl);
-    };
-    recorder.onerror = (e) => reject(new Error("MediaRecorder error: " + e));
-
-    // ── Start everything ──
-    bgVideo.play();
-    musicSource.start();
-    recorder.start(100); // collect data every 100ms
-
-    onProgress("Recording video… (this takes as long as the clip)");
-
-    const startTimestamp = performance.now();
-
-    // ── Subtitle helper ──
-    // Returns the words that should be visible at a given elapsed time
-    const getVisibleSubtitleGroup = (elapsedSec: number): string => {
-      const CUE_WORD_COUNT = 3;
-      for (let i = 0; i < subtitleWords.length; i += CUE_WORD_COUNT) {
-        const cueWords = subtitleWords.slice(i, i + CUE_WORD_COUNT);
-        const start = cueWords[0].startTime;
-        const end = cueWords[cueWords.length - 1].endTime;
-        if (elapsedSec >= start && elapsedSec <= end) {
-          return cueWords.map((w) => w.word).join(" ").toUpperCase();
+          narrationSource.connect(narrationGain);
+          narrationGain.connect(audioDestination);
+          narrationSource.start();
         }
-      }
-      return "";
-    };
-
-    // ── Frame rendering loop ──
-    const renderFrame = () => {
-      const elapsedSec = (performance.now() - startTimestamp) / 1000;
-
-      // Clear canvas with black
-      ctx.fillStyle = "#000000";
-      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-      // Draw background video — stretched to fill canvas (crop to fill)
-      const videoAspect = bgVideo.videoWidth / (bgVideo.videoHeight || 1);
-      const canvasAspect = CANVAS_WIDTH / CANVAS_HEIGHT;
-
-      let drawW = CANVAS_WIDTH;
-      let drawH = CANVAS_HEIGHT;
-      let drawX = 0;
-      let drawY = 0;
-
-      if (videoAspect > canvasAspect) {
-        // Video is wider — constrain by height
-        drawH = CANVAS_HEIGHT;
-        drawW = drawH * videoAspect;
-        drawX = (CANVAS_WIDTH - drawW) / 2;
-      } else {
-        // Video is taller — constrain by width
-        drawW = CANVAS_WIDTH;
-        drawH = drawW / videoAspect;
-        drawY = (CANVAS_HEIGHT - drawH) / 2;
+      } catch (err) {
+        console.warn("Could not mix narration audio into video:", err);
       }
 
-      ctx.drawImage(bgVideo, drawX, drawY, drawW, drawH);
+      // ── Combine canvas stream + audio stream for MediaRecorder ──
+      const canvasStream = canvas.captureStream(30); // 30fps
+      const audioTracks = audioDestination.stream.getAudioTracks();
+      for (const track of audioTracks) {
+        canvasStream.addTrack(track);
+      }
 
-      // Draw a semi-transparent overlay to help subtitle readability
-      const gradient = ctx.createLinearGradient(0, CANVAS_HEIGHT * 0.35, 0, CANVAS_HEIGHT * 0.75);
-      gradient.addColorStop(0, "rgba(0,0,0,0)");
-      gradient.addColorStop(0.4, "rgba(0,0,0,0.65)");
-      gradient.addColorStop(1, "rgba(0,0,0,0.65)");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+      // Pick a supported MIME type
+      const mimeType = [
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm",
+      ].find((t) => MediaRecorder.isTypeSupported(t)) || "video/webm";
 
-      // Draw subtitle text in the vertical centre
-      const subtitleText = getVisibleSubtitleGroup(elapsedSec);
-      if (subtitleText) {
-        const lines = wrapTextCanvas(ctx, subtitleText, CANVAS_WIDTH - 80, 72);
-        const lineHeight = 90;
-        const totalTextHeight = lines.length * lineHeight;
-        let textY = (CANVAS_HEIGHT - totalTextHeight) / 2;
+      const recorder = new MediaRecorder(canvasStream, { mimeType, videoBitsPerSecond: 4_000_000 });
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      recorder.onstop = () => {
+        audioCtx.close();
+        bgVideo.pause();
+        const blob = new Blob(chunks, { type: mimeType });
+        const videoUrl = URL.createObjectURL(blob);
+        resolve(videoUrl);
+      };
+      recorder.onerror = (e) => reject(new Error("MediaRecorder error: " + e));
 
-        for (const line of lines) {
-          // Shadow / outline effect
-          ctx.font = "bold 72px Arial, sans-serif";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "middle";
+      // ── Start everything ──
+      bgVideo.play();
+      musicSource.start();
+      recorder.start(100); // collect data every 100ms
 
-          // Yellow background pill
-          const textMetrics = ctx.measureText(line);
-          const pillW = textMetrics.width + 40;
-          const pillH = lineHeight - 8;
-          const pillX = (CANVAS_WIDTH - pillW) / 2;
+      onProgress("Recording video… (this takes as long as the clip)");
 
-          ctx.fillStyle = "#FACC15"; // Yellow-400
-          roundRect(ctx, pillX, textY - pillH / 2, pillW, pillH, 16);
-          ctx.fill();
+      const startTimestamp = performance.now();
 
-          // Black text on yellow pill
-          ctx.fillStyle = "#000000";
-          ctx.fillText(line, CANVAS_WIDTH / 2, textY);
-
-          textY += lineHeight;
+      // ── Subtitle helper ──
+      // Returns the words that should be visible at a given elapsed time
+      const getVisibleSubtitleGroup = (elapsedSec: number): string => {
+        const CUE_WORD_COUNT = 3;
+        for (let i = 0; i < subtitleWords.length; i += CUE_WORD_COUNT) {
+          const cueWords = subtitleWords.slice(i, i + CUE_WORD_COUNT);
+          const start = cueWords[0].startTime;
+          const end = cueWords[cueWords.length - 1].endTime;
+          if (elapsedSec >= start && elapsedSec <= end) {
+            return cueWords.map((w) => w.word).join(" ").toUpperCase();
+          }
         }
-      }
+        return "";
+      };
 
-      // Draw recording progress indicator
-      const progressRatio = Math.min(elapsedSec / totalDurationSec, 1);
-      ctx.fillStyle = "rgba(0,0,0,0.4)";
-      ctx.fillRect(20, CANVAS_HEIGHT - 24, CANVAS_WIDTH - 40, 8);
-      ctx.fillStyle = "#3B82F6"; // Blue
-      ctx.fillRect(20, CANVAS_HEIGHT - 24, (CANVAS_WIDTH - 40) * progressRatio, 8);
+      // ── Frame rendering loop ──
+      const renderFrame = () => {
+        const elapsedSec = (performance.now() - startTimestamp) / 1000;
 
-      // Stop recording when duration reached
-      if (elapsedSec >= totalDurationSec) {
-        recorder.stop();
-        musicSource.stop();
-        return; // Stop the loop
-      }
+        // Clear canvas with black
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        // Draw background video — stretched to fill canvas (crop to fill)
+        const videoAspect = bgVideo.videoWidth / (bgVideo.videoHeight || 1);
+        const canvasAspect = CANVAS_WIDTH / CANVAS_HEIGHT;
+
+        let drawW = CANVAS_WIDTH;
+        let drawH = CANVAS_HEIGHT;
+        let drawX = 0;
+        let drawY = 0;
+
+        if (videoAspect > canvasAspect) {
+          // Video is wider — constrain by height
+          drawH = CANVAS_HEIGHT;
+          drawW = drawH * videoAspect;
+          drawX = (CANVAS_WIDTH - drawW) / 2;
+        } else {
+          // Video is taller — constrain by width
+          drawW = CANVAS_WIDTH;
+          drawH = drawW / videoAspect;
+          drawY = (CANVAS_HEIGHT - drawH) / 2;
+        }
+
+        ctx.drawImage(bgVideo, drawX, drawY, drawW, drawH);
+
+        // Draw a semi-transparent overlay to help subtitle readability
+        const gradient = ctx.createLinearGradient(0, CANVAS_HEIGHT * 0.35, 0, CANVAS_HEIGHT * 0.75);
+        gradient.addColorStop(0, "rgba(0,0,0,0)");
+        gradient.addColorStop(0.4, "rgba(0,0,0,0.65)");
+        gradient.addColorStop(1, "rgba(0,0,0,0.65)");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+        // Draw subtitle text in the vertical centre
+        const subtitleText = getVisibleSubtitleGroup(elapsedSec);
+        if (subtitleText) {
+          const lines = wrapTextCanvas(ctx, subtitleText, CANVAS_WIDTH - 80, 72);
+          const lineHeight = 90;
+          const totalTextHeight = lines.length * lineHeight;
+          let textY = (CANVAS_HEIGHT - totalTextHeight) / 2;
+
+          for (const line of lines) {
+            // Shadow / outline effect
+            ctx.font = "bold 72px Arial, sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+
+            // Yellow background pill
+            const textMetrics = ctx.measureText(line);
+            const pillW = textMetrics.width + 40;
+            const pillH = lineHeight - 8;
+            const pillX = (CANVAS_WIDTH - pillW) / 2;
+
+            ctx.fillStyle = "#FACC15"; // Yellow-400
+            roundRect(ctx, pillX, textY - pillH / 2, pillW, pillH, 16);
+            ctx.fill();
+
+            // Black text on yellow pill
+            ctx.fillStyle = "#000000";
+            ctx.fillText(line, CANVAS_WIDTH / 2, textY);
+
+            textY += lineHeight;
+          }
+        }
+
+        // Draw recording progress indicator
+        const progressRatio = Math.min(elapsedSec / totalDurationSec, 1);
+        ctx.fillStyle = "rgba(0,0,0,0.4)";
+        ctx.fillRect(20, CANVAS_HEIGHT - 24, CANVAS_WIDTH - 40, 8);
+        ctx.fillStyle = "#3B82F6"; // Blue
+        ctx.fillRect(20, CANVAS_HEIGHT - 24, (CANVAS_WIDTH - 40) * progressRatio, 8);
+
+        // Stop recording when duration reached
+        if (elapsedSec >= totalDurationSec) {
+          recorder.stop();
+          musicSource.stop();
+          return; // Stop the loop
+        }
+
+        requestAnimationFrame(renderFrame);
+      };
 
       requestAnimationFrame(renderFrame);
-    };
-
-    requestAnimationFrame(renderFrame);
     })();
   });
 }
@@ -590,15 +590,14 @@ function StepIndicator({ label, status }: StepIndicatorProps) {
         )}
       </div>
       <span
-        className={`text-sm transition-colors ${
-          status === "active"
-            ? "text-blue-300 font-semibold"
-            : status === "done"
+        className={`text-sm transition-colors ${status === "active"
+          ? "text-blue-300 font-semibold"
+          : status === "done"
             ? "text-emerald-300"
             : status === "error"
-            ? "text-red-300"
-            : "text-zinc-500"
-        }`}
+              ? "text-red-300"
+              : "text-zinc-500"
+          }`}
       >
         {label}
       </span>
@@ -736,7 +735,7 @@ export default function ExplainerVideoGenerator() {
       );
 
       setVideoBlobUrl(videoUrl);
-      
+
       // ── STEP 5: MP4 Transcoding ──
       setPipelineStep("transcode");
       const mp4Url = await transcodeToMP4(videoUrl, setStatusMessage);
@@ -826,11 +825,10 @@ export default function ExplainerVideoGenerator() {
                   key={key}
                   onClick={() => setSelectedBgClip(key)}
                   disabled={isRunning}
-                  className={`w-full text-left px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
-                    selectedBgClip === key
-                      ? "bg-blue-600/20 border-blue-500 text-blue-300"
-                      : "bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
-                  }`}
+                  className={`w-full text-left px-4 py-3 rounded-xl border text-sm font-medium transition-all ${selectedBgClip === key
+                    ? "bg-blue-600/20 border-blue-500 text-blue-300"
+                    : "bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                    }`}
                 >
                   <span className="flex items-center justify-between">
                     {label}
@@ -853,11 +851,10 @@ export default function ExplainerVideoGenerator() {
                   key={key}
                   onClick={() => setSelectedMusic(key)}
                   disabled={isRunning}
-                  className={`w-full text-left px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
-                    selectedMusic === key
-                      ? "bg-purple-600/20 border-purple-500 text-purple-300"
-                      : "bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
-                  }`}
+                  className={`w-full text-left px-4 py-3 rounded-xl border text-sm font-medium transition-all ${selectedMusic === key
+                    ? "bg-purple-600/20 border-purple-500 text-purple-300"
+                    : "bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                    }`}
                 >
                   <span className="flex items-center justify-between">
                     {label}
