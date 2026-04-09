@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { 
-    Terminal, Zap, ShieldAlert, Cpu, Database, 
-    Loader2, Maximize2, X, Minus, Globe, 
+import {
+    Terminal, Zap, ShieldAlert, Cpu, Database,
+    Loader2, Maximize2, X, Minus, Globe,
     Lock, Command, ChevronRight, Activity,
     Box, HardDrive, Network
 } from "lucide-react";
@@ -33,7 +33,7 @@ export default function RunMachinePage() {
     const [isExecuting, setIsExecuting] = useState(false);
     const [currentCwd, setCurrentCwd] = useState<string>("");
     const [isInitialLoading, setIsInitialLoading] = useState(true);
-    
+
     const scrollRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -61,7 +61,7 @@ export default function RunMachinePage() {
         if (!cmd.trim()) return;
 
         const timestamp = new Date().toLocaleTimeString();
-        
+
         // Handle clear locally
         if (cmd.trim() === "clear") {
             setHistory([{ type: "system", content: "Buffer cleared.", timestamp }]);
@@ -69,9 +69,9 @@ export default function RunMachinePage() {
             return;
         }
 
-        const newLine: TerminalLine = { 
-            type: "input", 
-            content: cmd, 
+        const newLine: TerminalLine = {
+            type: "input",
+            content: cmd,
             timestamp,
             dir: currentCwd
         };
@@ -89,27 +89,27 @@ export default function RunMachinePage() {
             const data = await response.json();
 
             if (data.stdout) {
-                setHistory(prev => [...prev, { 
-                    type: "output", 
-                    content: data.stdout, 
-                    timestamp: new Date().toLocaleTimeString() 
+                setHistory(prev => [...prev, {
+                    type: "output",
+                    content: data.stdout,
+                    timestamp: new Date().toLocaleTimeString()
                 }]);
             }
             if (data.stderr) {
-                setHistory(prev => [...prev, { 
-                    type: "error", 
-                    content: data.stderr, 
-                    timestamp: new Date().toLocaleTimeString() 
+                setHistory(prev => [...prev, {
+                    type: "error",
+                    content: data.stderr,
+                    timestamp: new Date().toLocaleTimeString()
                 }]);
             }
             if (data.cwd) {
                 setCurrentCwd(data.cwd);
             }
         } catch (err) {
-            setHistory(prev => [...prev, { 
-                type: "error", 
-                content: "BRIDGE_RECON_FAILURE: Local process was terminated unexpectedly.", 
-                timestamp: new Date().toLocaleTimeString() 
+            setHistory(prev => [...prev, {
+                type: "error",
+                content: "BRIDGE_RECON_FAILURE: Local process was terminated unexpectedly.",
+                timestamp: new Date().toLocaleTimeString()
             }]);
         } finally {
             setIsExecuting(false);
@@ -155,9 +155,9 @@ export default function RunMachinePage() {
                         </div>
                         <span className="text-lg font-bold tracking-tighter text-white">V0ID_BRIDGE</span>
                     </div>
-                    
+
                     <div className="h-4 w-px bg-zinc-800" />
-                    
+
                     <div className="flex items-center gap-4 text-[10px] tracking-widest text-zinc-500">
                         <div className="flex items-center gap-1.5"><Activity className="w-3 h-3 text-[#10b981]" /> <span>SYS_LOAD: 4%</span></div>
                         <div className="flex items-center gap-1.5"><Network className="w-3 h-3 text-blue-500" /> <span>HOST: MACHINE-ANISH</span></div>
@@ -178,7 +178,7 @@ export default function RunMachinePage() {
 
             {/* Main Terminal Area - Massive Size */}
             <main className="flex-1 flex flex-col p-4 md:p-8 bg-black">
-                <div 
+                <div
                     onClick={handleWindowClick}
                     className="flex-1 bg-[#010101] border border-zinc-900 rounded-lg flex flex-col overflow-hidden shadow-[0_0_100px_rgba(0,0,0,1)] relative"
                 >
@@ -190,13 +190,13 @@ export default function RunMachinePage() {
                             <div className="w-2.5 h-2.5 rounded-full bg-zinc-800" />
                         </div>
                         <div className="text-[9px] text-zinc-600 tracking-widest uppercase flex items-center gap-2">
-                             <Lock className="w-3 h-3" /> Terminal_Session_Active
+                            <Lock className="w-3 h-3" /> Terminal_Session_Active
                         </div>
                         <div className="w-10" />
                     </div>
 
                     {/* Scrollable Content */}
-                    <div 
+                    <div
                         ref={scrollRef}
                         className="flex-1 overflow-y-auto overflow-x-hidden p-6 text-[12px] leading-relaxed relative custom-scrollbar"
                     >
@@ -244,13 +244,13 @@ export default function RunMachinePage() {
 
                     {/* Bottom Prompt - Glued to bottom */}
                     <div className="p-4 bg-[#050505] border-t border-zinc-900 group">
-                         <div className="max-w-5xl mx-auto flex items-center gap-3">
-                             <div className="flex items-center gap-2 px-2 py-1 rounded bg-[#10b981]/5 border border-[#10b981]/20">
-                                 <HardDrive className="w-3 h-3 text-[#10b981]" />
-                                 <span className="text-[10px] font-bold text-[#10b981] tracking-tight">{isInitialLoading ? "..." : shortCwd}</span>
-                             </div>
-                             <ChevronRight className="w-4 h-4 text-zinc-800" />
-                             <input 
+                        <div className="max-w-5xl mx-auto flex items-center gap-3">
+                            <div className="flex items-center gap-2 px-2 py-1 rounded bg-[#10b981]/5 border border-[#10b981]/20">
+                                <HardDrive className="w-3 h-3 text-[#10b981]" />
+                                <span className="text-[10px] font-bold text-[#10b981] tracking-tight">{isInitialLoading ? "..." : shortCwd}</span>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-zinc-800" />
+                            <input
                                 ref={inputRef}
                                 type="text"
                                 value={input}
@@ -260,27 +260,27 @@ export default function RunMachinePage() {
                                 autoFocus
                                 className="flex-1 bg-transparent border-none outline-none text-white font-mono text-[13px] placeholder:text-zinc-800 focus:placeholder:text-zinc-700 transition-colors"
                                 placeholder={isInitialLoading ? "connecting..." : "v0id@host: inject command_"}
-                             />
-                             {!isExecuting && (
-                                 <div className="flex items-center gap-2">
-                                     <div className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse" />
-                                     <span className="text-[8px] font-bold text-zinc-700 tracking-widest uppercase">SYSCALL_READY</span>
-                                 </div>
-                             )}
-                         </div>
+                            />
+                            {!isExecuting && (
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse" />
+                                    <span className="text-[8px] font-bold text-zinc-700 tracking-widest uppercase">SYSCALL_READY</span>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
                 {/* Status Bar */}
                 <div className="mt-4 flex justify-between items-center px-2">
-                     <div className="flex gap-4 text-[9px] text-zinc-600 uppercase tracking-widest font-black">
-                         <span>CPU_INTEL_VPRO</span>
-                         <span>RAM_DDR5_ECC</span>
-                         <span>KERNEL_NT_10.0</span>
-                     </div>
-                     <div className="text-[9px] text-zinc-800">
-                         (C) 2026 V0ID CORP · ALL RIGHTS RESERVED
-                     </div>
+                    <div className="flex gap-4 text-[9px] text-zinc-600 uppercase tracking-widest font-black">
+                        <span>CPU_INTEL_VPRO</span>
+                        <span>RAM_DDR5_ECC</span>
+                        <span>KERNEL_NT_10.0</span>
+                    </div>
+                    <div className="text-[9px] text-zinc-800">
+                        (C) 2026 V0ID CORP · ALL RIGHTS RESERVED
+                    </div>
                 </div>
             </main>
 

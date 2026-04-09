@@ -19,6 +19,8 @@ import projectOne from "@/images/image.png"
 import projectTwo from "@/images/image-1.png"
 import projectThree from "@/images/image-2.png"
 import projectFour from "@/images/image-3.png";
+import projectFive from "@/images/image-6.png";
+import projectSix from "@/images/image-7.png";
 
 const projects = [
   {
@@ -51,7 +53,13 @@ const projects = [
     id: "clean-room",
     title: "Clean Room Liberation",
     description: "Clean Room Liberation - It contains background gaming clips (gta5, minecraft, subway surfers, etc.), background music and scripts generated from the given user topic.",
-    image: projectFour,
+    image: projectFive,
+  },
+  {
+    id: "run-machine",
+    title: "Remote Machine Access",
+    description: "",
+    image: projectSix,
   },
 ]
 
