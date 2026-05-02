@@ -437,16 +437,16 @@ function ChatNodeCard({
                         <div className="flex items-center justify-between px-3 py-1.5 border-b bg-muted/20">
                             <div className="flex items-center gap-1.5">
                                 <Button
-                                    variant="ghost" 
-                                    size="sm" 
+                                    variant="ghost"
+                                    size="sm"
                                     className={cn("h-7 px-2 text-[10px] gap-1", isEditingNote && "bg-background shadow-sm")}
                                     onClick={() => setIsEditingNote(true)}
                                 >
                                     <Type size={10} /> Edit
                                 </Button>
                                 <Button
-                                    variant="ghost" 
-                                    size="sm" 
+                                    variant="ghost"
+                                    size="sm"
                                     className={cn("h-7 px-2 text-[10px] gap-1", !isEditingNote && "bg-background shadow-sm")}
                                     onClick={() => setIsEditingNote(false)}
                                 >
@@ -859,7 +859,7 @@ export default function CanvasChatBoard() {
         const id = generateId()
         const node = nodes.find(n => n.id === nodeId)
         if (!node) return
-        
+
         const newNode: ChatNode = {
             id,
             variant: "note",
@@ -920,10 +920,10 @@ export default function CanvasChatBoard() {
             const l = levels[n.id] || 0
             const nodesInLevel = nodesByLevel[l]
             const indexInLevel = nodesInLevel.findIndex(ln => ln.id === n.id)
-            
+
             // Calculate X based on level
             const x = 100 + l * (NODE_WIDTH_STANDARD + HORIZONTAL_GAP)
-            
+
             // Calculate Y based on index in level, centered around parent if possible
             // For now, simple stacked positioning
             const y = 100 + (indexInLevel * (DEFAULT_NODE_HEIGHT + VERTICAL_GAP))
@@ -1075,7 +1075,7 @@ export default function CanvasChatBoard() {
                             fill="none"
                             markerEnd={isSelected ? "url(#arrowhead-selected)" : "url(#arrowhead)"}
                             className={cn(
-                                "transition-all duration-300", 
+                                "transition-all duration-300",
                                 isSelected ? "text-primary stroke-[3]" : "text-foreground group-hover/conn:stroke-primary group-hover/conn:stroke-2 group-hover/conn:stroke-opacity-50"
                             )}
                             strokeDasharray={isSelected ? "5,5" : "0"}

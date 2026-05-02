@@ -23,8 +23,9 @@ import {
   ChevronRight,
   Volume2,
 } from "lucide-react";
-import { Button } from "./ui/button";
-import { Textarea } from "./ui/textarea";
+import { Button } from "../ui/button";
+import { Textarea } from "../ui/textarea";
+import ModeToggle from "../chat/ModeToggle";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -591,12 +592,12 @@ function StepIndicator({ label, status }: StepIndicatorProps) {
       </div>
       <span
         className={`text-sm transition-colors ${status === "active"
-          ? "text-blue-300 font-semibold"
+          ? "text-blue-600 dark:text-blue-300 font-semibold"
           : status === "done"
-            ? "text-emerald-300"
+            ? "text-emerald-600 dark:text-emerald-300"
             : status === "error"
-              ? "text-red-300"
-              : "text-zinc-500"
+              ? "text-red-600 dark:text-red-300"
+              : "text-zinc-400 dark:text-zinc-500"
           }`}
       >
         {label}
@@ -777,35 +778,36 @@ export default function ExplainerVideoGenerator() {
   const isRunning = ["script", "audio", "subtitles", "video", "transcode"].includes(pipelineStep);
   const isDone = pipelineStep === "done";
   const isError = pipelineStep === "error";
-
   return (
-    <div className="max-w-6xl mx-auto px-4 pb-20">
+    <div className="max-w-6xl mx-auto px-4 pb-20 relative">
+      {/* ── Mode Toggle ── */}
+      <div className="absolute top-10 right-4 z-20">
+        <ModeToggle />
+      </div>
+
       {/* ── Header ── */}
       <div className="text-center py-10 space-y-3">
-        <div className="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 px-4 py-1.5 rounded-full text-sm font-medium">
+        <div className="inline-flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 px-4 py-1.5 rounded-full text-sm font-medium">
           <Sparkles className="w-4 h-4" />
           AI-Powered · Browser-Native · No Upload Required
         </div>
-        <h1 className="text-5xl font-black tracking-tight text-white bg-gradient-to-r from-white via-blue-200 to-purple-300 bg-clip-text text-transparent">
+        <h1 className="text-5xl font-black tracking-tight text-zinc-900 dark:text-white bg-gradient-to-r from-zinc-900 via-blue-600 to-purple-600 dark:from-white dark:via-blue-200 dark:to-purple-300 bg-clip-text text-transparent">
           Explainer Video Generator
         </h1>
-        <p className="text-zinc-400 max-w-xl mx-auto text-sm">
-          Type a topic → Gemini writes the script → Browser narrates it → Whisper generates
-          subtitles → Canvas composes the final video with your chosen background and music.
-        </p>
+
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* ── LEFT: Controls ── */}
         <div className="lg:col-span-2 space-y-5">
           {/* Topic Input */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
-            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+          <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 space-y-3">
+            <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest flex items-center gap-2">
               <FileText className="w-3 h-3" />
               Video Topic
             </label>
             <Textarea
-              className="resize-none bg-zinc-950 border-zinc-700 h-24 text-white placeholder:text-zinc-600 hover:border-blue-500/50 focus:border-blue-500 transition-colors text-sm"
+              className="resize-none bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-700 h-24 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 hover:border-blue-500/50 focus:border-blue-500 transition-colors text-sm"
               placeholder="e.g. Why the universe is expanding faster than light…"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
@@ -814,8 +816,8 @@ export default function ExplainerVideoGenerator() {
           </div>
 
           {/* Background Clip Selector */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
-            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+          <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 space-y-3">
+            <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest flex items-center gap-2">
               <Video className="w-3 h-3" />
               Background Gameplay Clip
             </label>
@@ -825,9 +827,9 @@ export default function ExplainerVideoGenerator() {
                   key={key}
                   onClick={() => setSelectedBgClip(key)}
                   disabled={isRunning}
-                  className={`w-full text-left px-4 py-3 rounded-xl border text-sm font-medium transition-all ${selectedBgClip === key
-                    ? "bg-blue-600/20 border-blue-500 text-blue-300"
-                    : "bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                  className={`w-full cursor-pointer text-left px-4 py-3 rounded-xl border text-sm font-medium transition-all ${selectedBgClip === key
+                    ? "bg-blue-600/10 border-blue-500 text-blue-600 dark:text-blue-300 dark:bg-blue-600/20"
+                    : "bg-white dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
                     }`}
                 >
                   <span className="flex items-center justify-between">
@@ -840,8 +842,8 @@ export default function ExplainerVideoGenerator() {
           </div>
 
           {/* Music Selector */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
-            <label className="text-xs font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+          <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 space-y-3">
+            <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest flex items-center gap-2">
               <Music className="w-3 h-3" />
               Background Music
             </label>
@@ -851,9 +853,9 @@ export default function ExplainerVideoGenerator() {
                   key={key}
                   onClick={() => setSelectedMusic(key)}
                   disabled={isRunning}
-                  className={`w-full text-left px-4 py-3 rounded-xl border text-sm font-medium transition-all ${selectedMusic === key
-                    ? "bg-purple-600/20 border-purple-500 text-purple-300"
-                    : "bg-zinc-800/50 border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+                  className={`w-full cursor-pointer text-left px-4 py-3 rounded-xl border text-sm font-medium transition-all ${selectedMusic === key
+                    ? "bg-purple-600/10 border-purple-500 text-purple-600 dark:text-purple-300 dark:bg-purple-600/20"
+                    : "bg-white dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:border-zinc-400 dark:hover:border-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200"
                     }`}
                 >
                   <span className="flex items-center justify-between">
@@ -869,14 +871,14 @@ export default function ExplainerVideoGenerator() {
           <Button
             onClick={runPipeline}
             disabled={!topic.trim() || isRunning}
-            className="w-full py-6 text-base font-bold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white border-0 rounded-xl shadow-lg shadow-blue-900/30 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
+            className="w-full py-6 text-base font-bold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white border-0 rounded-xl shadow-lg dark:shadow-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
           >
             {isRunning ? (
               <span className="flex items-center gap-2">
                 <Loader2 className="w-5 h-5 animate-spin" /> Running Pipeline…
               </span>
             ) : (
-              <span className="flex items-center gap-2">
+              <span className="cursor-pointer flex items-center gap-2">
                 <Play className="w-5 h-5" /> Generate Explainer Video
               </span>
             )}
@@ -884,8 +886,8 @@ export default function ExplainerVideoGenerator() {
 
           {/* Pipeline Steps */}
           {pipelineStep !== "idle" && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
-              <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
+            <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 space-y-3">
+              <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-500 uppercase tracking-widest">
                 Pipeline Progress
               </p>
               <div className="space-y-2.5">
@@ -896,13 +898,13 @@ export default function ExplainerVideoGenerator() {
                 <StepIndicator label="Transcode to MP4 (H.264)" status={stepStatus("transcode")} />
               </div>
               {statusMessage && (
-                <p className="text-xs text-zinc-500 italic border-t border-zinc-800 pt-3">
+                <p className="text-xs text-zinc-500 italic border-t border-zinc-200 dark:border-zinc-800 pt-3">
                   {statusMessage}
                 </p>
               )}
               {isError && errorMessage && (
-                <div className="bg-red-950/50 border border-red-900/50 rounded-xl p-3">
-                  <p className="text-xs text-red-400 font-medium">{errorMessage}</p>
+                <div className="bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/50 rounded-xl p-3">
+                  <p className="text-xs text-red-600 dark:text-red-400 font-medium">{errorMessage}</p>
                 </div>
               )}
             </div>
@@ -912,7 +914,7 @@ export default function ExplainerVideoGenerator() {
         {/* ── RIGHT: Preview and Output ── */}
         <div className="lg:col-span-3 space-y-5">
           {/* Video Preview */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden min-h-[480px] flex flex-col items-center justify-center relative">
+          <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl overflow-hidden min-h-[480px] flex flex-col items-center justify-center relative">
             {isDone && videoBlobUrl ? (
               <div className="w-full flex flex-col items-center">
                 <video
@@ -933,13 +935,13 @@ export default function ExplainerVideoGenerator() {
                   <div className="absolute inset-0 rounded-full border-4 border-blue-500/40 animate-pulse" />
                   <div className="w-24 h-24 rounded-full border-4 border-t-blue-500 border-r-purple-500 border-b-transparent border-l-transparent animate-spin" />
                 </div>
-                <p className="text-zinc-300 font-medium">Generating your video…</p>
+                <p className="text-zinc-600 dark:text-zinc-300 font-medium">Generating your video…</p>
                 <p className="text-zinc-500 text-sm max-w-xs">{statusMessage}</p>
               </div>
             ) : (
               <div className="text-center space-y-3 p-8">
-                <div className="w-24 h-24 mx-auto rounded-full bg-zinc-800 flex items-center justify-center">
-                  <Video className="w-12 h-12 text-zinc-600" />
+                <div className="w-24 h-24 mx-auto rounded-full bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center">
+                  <Video className="w-12 h-12 text-zinc-400 dark:text-zinc-600" />
                 </div>
                 <p className="text-zinc-500 text-sm max-w-xs">
                   Enter a topic and click Generate — your video will appear here.
@@ -950,12 +952,12 @@ export default function ExplainerVideoGenerator() {
 
           {/* Generated Script Preview */}
           {script && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
-              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+            <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 space-y-3">
+              <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest flex items-center gap-2">
                 <Volume2 className="w-3 h-3" />
                 Generated Script (Gemini)
               </label>
-              <div className="bg-zinc-950 rounded-xl p-4 border border-zinc-800 font-mono text-sm text-zinc-300 leading-relaxed max-h-48 overflow-y-auto">
+              <div className="bg-white dark:bg-zinc-950 rounded-xl p-4 border border-zinc-200 dark:border-zinc-800 font-mono text-sm text-zinc-700 dark:text-zinc-300 leading-relaxed max-h-48 overflow-y-auto">
                 {script}
               </div>
             </div>
@@ -966,7 +968,7 @@ export default function ExplainerVideoGenerator() {
             <div className="grid grid-cols-2 gap-3">
               <Button
                 onClick={downloadVideo}
-                className="bg-white text-black hover:bg-zinc-100 font-bold py-4 rounded-xl transition-all hover:scale-105 active:scale-95"
+                className="bg-zinc-900 dark:bg-white text-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-100 font-bold py-4 rounded-xl transition-all hover:scale-105 active:scale-95"
               >
                 <Download className="w-4 h-4 mr-2" />
                 Download Video ({mp4BlobUrl ? ".mp4" : ".webm"})
@@ -974,7 +976,7 @@ export default function ExplainerVideoGenerator() {
               <Button
                 onClick={downloadSRT}
                 variant="outline"
-                className="border-zinc-600 text-zinc-300 hover:bg-zinc-800 font-bold py-4 rounded-xl transition-all hover:scale-105 active:scale-95"
+                className="border-zinc-300 dark:border-zinc-600 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 font-bold py-4 rounded-xl transition-all hover:scale-105 active:scale-95"
               >
                 <FileText className="w-4 h-4 mr-2" />
                 Export Subtitles (.srt)
@@ -984,11 +986,11 @@ export default function ExplainerVideoGenerator() {
 
           {/* SRT Preview */}
           {srtContent && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-3">
-              <label className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">
+            <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 space-y-3">
+              <label className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest">
                 Subtitle Preview (.SRT)
               </label>
-              <pre className="bg-zinc-950 rounded-xl p-4 border border-zinc-800 text-xs text-zinc-400 font-mono leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap">
+              <pre className="bg-white dark:bg-zinc-950 rounded-xl p-4 border border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500 dark:text-zinc-400 font-mono leading-relaxed max-h-48 overflow-y-auto whitespace-pre-wrap">
                 {srtContent.slice(0, 800)}{srtContent.length > 800 ? "\n…" : ""}
               </pre>
             </div>
